@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Studio Chatbot – Entrena y Prueba</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Studio Chatbot – Entrena y Prueba</title>
+  <style>
+    :root{
+      --bg:#0f1221;--panel:#151a33;--muted:#8892b0;--text:#e6e9ff;--brand:#6c8cff;--accent:#22d3ee;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;
+      --br:16px;--gap:14px;--shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1000px 500px at 10% -10%,rgba(108,140,255,.15),transparent),radial-gradient(800px 400px at 90% -10%,rgba(34,211,238,.08),transparent),var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica Neue,Noto Sans,Arial,"Apple Color Emoji","Segoe UI Emoji"}
+    .app{display:grid;grid-template-columns:320px 1fr;gap:var(--gap);height:100%;padding:var(--gap)}
+    aside{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));border:1px solid rgba(255,255,255,.06);border-radius:var(--br);padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+    main{display:grid;grid-template-rows:auto 1fr;gap:var(--gap)}
+    header{display:flex;gap:10px;align-items:center;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));border:1px solid rgba(255,255,255,.06);border-radius:var(--br);padding:16px 18px;box-shadow:var(--shadow)}
+    .logo{width:36px;height:36px;border-radius:10px;background:conic-gradient(from 200deg at 60% 40%,var(--brand),var(--accent));box-shadow:0 0 0 2px rgba(255,255,255,.05) inset}
+    .title{font-weight:700}
+
+    .panels{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);height:100%}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));border:1px solid rgba(255,255,255,.06);border-radius:var(--br);padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+    .card h3{margin:0 0 8px 0;font-size:16px}
+    .card .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+
+    textarea,input[type="text"],input[type="number"],.input,select{width:100%;border:1px solid rgba(255,255,255,.08);background:rgba(5,8,18,.6);color:var(--text);border-radius:12px;padding:10px 12px;outline:none}
+    textarea{min-height:120px;resize:vertical}
+
+    .row{display:flex;gap:10px;align-items:center}
+    .row.wrap{flex-wrap:wrap}
+    .row.spread{justify-content:space-between}
+    .muted{color:var(--muted)}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04)}
+
+    button{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));color:var(--text);border:1px solid rgba(255,255,255,.12);padding:9px 12px;border-radius:12px;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,rgba(108,140,255,.25),rgba(108,140,255,.06));border-color:rgba(108,140,255,.5)}
+    button.ok{background:linear-gradient(180deg,rgba(34,197,94,.25),rgba(34,197,94,.06));border-color:rgba(34,197,94,.5)}
+    button.warn{background:linear-gradient(180deg,rgba(245,158,11,.25),rgba(245,158,11,.06));border-color:rgba(245,158,11,.5)}
+    button.ghost{background:transparent;border-color:rgba(255,255,255,.08)}
+
+    .list{display:flex;flex-direction:column;gap:10px;overflow:auto}
+    .item{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);padding:10px;border-radius:12px}
+    .badge{width:28px;height:28px;border-radius:8px;background:linear-gradient(180deg,rgba(108,140,255,.35),rgba(108,140,255,.1))}
+
+    .dataset{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .dataset textarea{min-height:80px}
+
+    /* Chat tester */
+    .chat{background:radial-gradient(300px 200px at 80% -20%,rgba(108,140,255,.16),transparent),rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.06);border-radius:var(--br);display:flex;flex-direction:column;min-height:0}
+    .chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+    .bubble{max-width:80%;padding:10px 12px;border-radius:14px}
+    .user{align-self:flex-end;background:rgba(108,140,255,.18);border:1px solid rgba(108,140,255,.45)}
+    .bot{align-self:flex-start;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.45)}
+    .composer{display:flex;gap:10px;padding:10px;border-top:1px solid rgba(255,255,255,.06)}
+
+    /* Floating mini widget */
+    .launcher{position:fixed;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,var(--brand),#516dff);color:#fff;display:grid;place-items:center;box-shadow:var(--shadow);cursor:pointer;z-index:9999}
+    .mini{position:fixed;right:16px;bottom:86px;width:360px;max-width:92vw;height:520px;display:none;grid-template-rows:auto 1fr auto;background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;z-index:9999}
+    .mini header{border:0;border-bottom:1px solid rgba(255,255,255,.08);border-radius:0}
+    .mini .chatlog{background:rgba(0,0,0,.2)}
+    .mini.show{display:grid}
+
+    /* Utility */
+    .mt8{margin-top:8px}
+    .mt12{margin-top:12px}
+    .mt16{margin-top:16px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .center{display:flex;align-items:center;justify-content:center}
+    .small{font-size:12px}
+    .kbd{font:12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 6px}
+
+    @media (max-width:1000px){
+      .app{grid-template-columns:1fr}
+      .panels{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="row" style="gap:12px;align-items:center">
+        <div class="logo"></div>
+        <div>
+          <div class="title">Studio Chatbot</div>
+          <div class="muted small">Entrena con ejemplos y prueba respuestas</div>
+        </div>
+      </div>
+
+      <div class="mt16">
+        <div class="pill">Estado del modelo: <strong id="modelStatus">Sin entrenar</strong></div>
+      </div>
+
+      <div class="mt16">
+        <div class="small muted">Umbral de similitud (0–1)</div>
+        <input type="number" id="threshold" min="0" max="1" step="0.01" value="0.35" />
+      </div>
+
+      <div class="mt12">
+        <div class="small muted">Top-K ejemplos</div>
+        <input type="number" id="topk" min="1" max="5" step="1" value="2" />
+      </div>
+
+      <div class="mt16 grid2">
+        <button class="primary" id="btnTrain">Entrenar</button>
+        <button class="ghost" id="btnClear">Reiniciar</button>
+      </div>
+
+      <div class="mt16">
+        <div class="small muted">Importar dataset (.json o .csv: columnas <em>user,assistant</em>)</div>
+        <input class="mt8" type="file" id="file" accept=".json,.csv" />
+        <div class="row mt8">
+          <button id="btnImport">Importar</button>
+          <button class="ghost" id="btnExport">Exportar JSON</button>
+        </div>
+      </div>
+
+      <div class="mt16">
+        <div class="small muted">Instrucción del sistema (comportamiento del bot)</div>
+        <textarea id="systemPrompt" placeholder="Eres un asistente que responde breve y claramente en español..."></textarea>
+      </div>
+
+      <div class="mt16">
+        <div class="small muted">Snippet para incrustar el botón flotante</div>
+        <details>
+          <summary>Ver código</summary>
+          <pre class="small muted" id="embedSnippet"></pre>
+        </details>
+      </div>
+
+      <div class="mt16 small muted">Atajos: <span class="kbd">Ctrl/Cmd</span> + <span class="kbd">Enter</span> para enviar</div>
+    </aside>
+
+    <main>
+      <header>
+        <div class="title">Datos de entrenamiento y pruebas</div>
+      </header>
+
+      <div class="panels">
+        <section class="card">
+          <h3>1) Dataset de ejemplos</h3>
+          <div class="sub">Añade pares <strong>Usuario</strong> → <strong>Asistente</strong> (Q&A, intenciones, FAQs). Esto alimenta el buscador semántico local.</div>
+
+          <div class="dataset">
+            <div>
+              <div class="small muted">Usuario</div>
+              <textarea id="exUser" placeholder="Ej: ¿Cuáles son sus horarios?\n¿Tienen servicio a domicilio?..."></textarea>
+            </div>
+            <div>
+              <div class="small muted">Asistente</div>
+              <textarea id="exBot" placeholder="Ej: Atendemos de lun a sáb, 8am–6pm...\nNo ofrecemos domicilio, pero podemos recomendar grúa..."></textarea>
+            </div>
+          </div>
+          <div class="row mt12">
+            <button id="btnAdd" class="ok">Agregar ejemplo</button>
+            <span class="muted small" id="count">0 ejemplos</span>
+          </div>
+
+          <div class="list mt16" id="examplesList"></div>
+        </section>
+
+        <section class="card">
+          <h3>2) Probador de chat (RAG local)</h3>
+          <div class="sub">El bot busca los ejemplos más similares (TF‑IDF + coseno en el navegador) y responde usando el mejor match, contextualizado por el prompt del sistema.</div>
+
+          <div class="chat" id="tester">
+            <div class="chatlog" id="chatlog"></div>
+            <div class="composer">
+              <input id="ask" class="input" type="text" placeholder="Escribe tu mensaje..." />
+              <button id="send" class="primary">Enviar</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mini widget embebible -->
+  <div class="launcher" id="launcher" title="Abrir chat">
+    <!-- icono simple -->
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+  </div>
+  <div class="mini" id="mini">
+    <header class="row spread">
+      <div class="row" style="gap:8px;align-items:center">
+        <div class="logo" style="width:24px;height:24px"></div>
+        <strong>Asistente</strong>
+      </div>
+      <button class="ghost" id="closeMini">Cerrar</button>
+    </header>
+    <div class="chatlog" id="miniLog"></div>
+    <div class="composer">
+      <input id="miniAsk" class="input" type="text" placeholder="Pregunta aquí..." />
+      <button id="miniSend" class="primary">Enviar</button>
+    </div>
+  <div id="app">Chatbot Studio</div>
+  <script src="studio-chatbot.js"></script>
+</body>
+</html>
