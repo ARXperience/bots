@@ -1,4 +1,4 @@
-// bot.js — versión PRO (Markdown + Copiar + Typing + Persistencia)
+// bot.js — versión PRO + Flujo de Cotización (Markdown + Copiar + Typing + Persistencia)
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
 const send  = document.getElementById('send');
@@ -6,6 +6,8 @@ const typing= document.getElementById('typing');
 const clear = document.getElementById('clear');
 
 const STORAGE_KEY = 'cdd_chat_history_v1';
+const QUOTE_KEY   = 'cdd_quote_leads_v1';
+const FLOW_KEY    = 'cdd_quote_flow_state_v1';
 
 // === Base de conocimiento (con CTA integrado) ===
 const CTA = "\n\n**Contáctanos:** WhatsApp +57 000 000 0000 · hola@centrodigitaldediseno.com";
@@ -23,7 +25,11 @@ const KB = {
     "### Precios & cotización\nTrabajamos **por alcance y objetivos**; el valor depende de páginas, integraciones, volumen de contenido y automatizaciones.\n> Nota: las **apps premium** no son gratuitas (costo mensual del proveedor).\n\n**Cómo cotizamos**\n1) **Brief** rápido + **llamada** de 15–20 min.\n2) Propuesta con **entregables, tiempos y valor**.\n3) Alineación y arranque del **Sprint 1**." + CTA
 };
 
-// === Estado y arranque ===
+// === Estado del flujo de cotización ===
+let flow = loadFlowState() || {
+  activo: false, paso: 0, datos: { nombre:"", servicios:"", empresa:"", telefono:"" }
+};
+
 restoreHistory();
 if (historyEmpty()) {
   botMsg("👋 **Hola, soy el asistente del Centro Digital de Diseño.**\nRespondo sobre **servicios**, **páginas web**, **automatizaciones** y **cotización**.");
@@ -34,17 +40,183 @@ send.onclick = () => {
   if (!txt) return;
   input.value = "";
   userMsg(txt);
-  respond(txt);
+  route(txt);
 };
 input.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); }
 });
 document.querySelectorAll(".chip").forEach(c => {
-  c.onclick = () => { userMsg(c.dataset.q); respond(c.dataset.q); };
+  c.onclick = () => { userMsg(c.dataset.q); route(c.dataset.q); };
 });
-clear.onclick = () => { localStorage.removeItem(STORAGE_KEY); msgs.innerHTML = ""; typing.style.display="none"; };
+if (clear) {
+  clear.onclick = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(FLOW_KEY);
+    msgs.innerHTML = "";
+    typing.style.display="none";
+    flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
+    botMsg("🧹 Historial limpio. ¿Quieres **cotizar**? Puedo guiarte paso a paso.");
+  };
+}
 
-// === Render con Markdown + botón Copiar ===
+// ====== Router principal (flujo o respuestas estándar) ======
+function route(q){
+  // Comando de cancelación del flujo
+  if (/^cancelar$/i.test(q.trim())) {
+    if (flow.activo){
+      flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
+      saveFlowState();
+      return botMsg("Flujo de cotización **cancelado**. Cuando quieras, escribe *cotizar* para retomarlo.");
+    }
+  }
+
+  // Si el flujo está activo, manejar pasos
+  if (flow.activo) {
+    handleCotizacion(q);
+    return;
+  }
+
+  // Detectar intención de cotizar e iniciar flujo
+  const qn = norm(q);
+  if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) {
+    startCotizacion();
+    return;
+  }
+
+  // Respuestas estándar con intención mejorada
+  respond(q);
+}
+
+// ====== Flujo de Cotización ======
+function startCotizacion(){
+  flow = { activo:true, paso:1, datos:{ nombre:"", servicios:"", empresa:"", telefono:"" } };
+  saveFlowState();
+  botMsg("¡Perfecto! Para darte una **cotización personalizada** necesito unos datos.\n\n1️⃣ ¿Cuál es tu **nombre completo**?\n\n*(Puedes escribir `cancelar` para salir del flujo.)*");
+}
+
+function handleCotizacion(respuesta){
+  const text = respuesta.trim();
+  switch(flow.paso){
+    case 1: { // Nombre
+      flow.datos.nombre = text;
+      flow.paso = 2; saveFlowState();
+      botMsg(`Gracias, **${escapeHTML(text)}**. 2️⃣ Cuéntame: ¿Qué **servicios** te interesan?\n_Ej.: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);
+      break;
+    }
+    case 2: { // Servicios
+      flow.datos.servicios = text;
+      flow.paso = 3; saveFlowState();
+      botMsg("3️⃣ ¿Cómo se llama tu **empresa o proyecto**?");
+      break;
+    }
+    case 3: { // Empresa
+      flow.datos.empresa = text;
+      flow.paso = 4; saveFlowState();
+      botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono** para compartirte la propuesta?");
+      break;
+    }
+    case 4: { // Teléfono con validación básica
+      if (!isValidPhone(text)) {
+        botMsg("Parece que el número no es válido. Intenta con un formato como `3001234567` o incluye código de país `+57 3001234567`.");
+        return;
+      }
+      flow.datos.telefono = cleanPhone(text);
+      finalizeQuote();
+      break;
+    }
+    default:
+      // Por si acaso se desincroniza, reiniciamos el flujo
+      flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
+      saveFlowState();
+      botMsg("He reiniciado el flujo. Escribe **cotizar** para empezar de nuevo.");
+  }
+}
+
+function finalizeQuote(){
+  // Guardar lead en localStorage (histórico)
+  const leads = JSON.parse(localStorage.getItem(QUOTE_KEY) || "[]");
+  const lead = { ...flow.datos, fecha: new Date().toISOString() };
+  leads.push(lead);
+  localStorage.setItem(QUOTE_KEY, JSON.stringify(leads));
+
+  // Preparar resumen y CTAs
+  const { nombre, servicios, empresa, telefono } = flow.datos;
+  const wappText = encodeURIComponent(
+    `Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`
+  );
+  const mailBody = encodeURIComponent(
+`Nombre: ${nombre}
+Servicios: ${servicios}
+Empresa/Proyecto: ${empresa}
+Teléfono: ${telefono}
+
+Mensaje: Hola, quiero avanzar con la cotización.`
+  );
+
+  const resumen =
+`### ¡Genial, ${escapeHTML(nombre)}! 🙌
+Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te contactaremos en breve.
+
+**Resumen**
+- **Servicios:** ${escapeHTML(servicios)}
+- **Empresa/Proyecto:** ${escapeHTML(empresa)}
+- **WhatsApp/Teléfono:** ${escapeHTML(telefono)}
+
+**Acceso rápido**
+- WhatsApp: https://wa.me/57${onlyDigits(telefono).replace(/^57/,'')}?text=${wappText}
+- Email: mailto:hola@centrodigitaldediseno.com?subject=Cotización&body=${mailBody}
+
+> Si necesitas corregir algo, escribe **cotizar** para iniciar nuevamente.`;
+
+  flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
+  saveFlowState();
+  botMsg(resumen);
+  // También mostramos el bloque estándar de cotización como contexto
+  botMsg(KB.cotiz);
+}
+
+// ====== Respuestas estándar ======
+function respond(q){
+  showTyping(true);
+  setTimeout(() => {
+    showTyping(false);
+    const qn = norm(q);
+
+    if ( /(servicios|qué hacen|que hacen|ofrecen|todo lo que hacen)/.test(qn) ) return botMsg(KB.servicios);
+    if ( /(web|landing|tienda|ecommerce|shopify|woocommerce|página|pagina)/.test(qn) ) return botMsg(KB.web);
+    if ( /(automat|whatsapp|manychat|make|bot|ia|integraci[oó]n|crm)/.test(qn) ) return botMsg(KB.automat);
+    if ( /(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto|cotizar)/.test(qn) ) {
+      // muestra bloque y ofrece iniciar flujo
+      botMsg(KB.cotiz + "\n\n¿Quieres que **inicie el flujo de cotización** aquí mismo? Escribe **cotizar**.");
+      return;
+    }
+
+    // Pequeño buscador difuso
+    const hit = smallSearch(qn);
+    if (hit) return botMsg(hit);
+
+    // Fallback
+    botMsg("Puedo ayudarte con **servicios**, **páginas web**, **automatizaciones** y **cotización**. ¿Qué necesitas exactamente?\n\nEj.: *“Landing + WhatsApp”*, *“Calendarizar contenido con IA”*." + CTA);
+  }, 420 + Math.random()*260);
+}
+
+// ====== Buscador difuso muy simple ======
+function smallSearch(q){
+  const pairs = [
+    [KB.servicios, ["branding","seo social","growth","ads","ar","reels","tiktok","shorts","contenido"]],
+    [KB.web,       ["web","landing","tienda","ecommerce","shopify","woocommerce","velocidad","conversion","analitica","analytics","crm","whatsapp"]],
+    [KB.automat,   ["automat","manychat","whatsapp","make","bot","flow","crm","integracion","integración"]],
+    [KB.cotiz,     ["precio","cotiz","presupuesto","propuesta","valor"]]
+  ];
+  let best=null,score=0;
+  pairs.forEach(([text,keys])=>{
+    const s = keys.reduce((acc,k)=> acc + (q.includes(k)?1:0), 0);
+    if (s>score){score=s; best=text;}
+  });
+  return score>0 ? best : null;
+}
+
+// ====== Render con Markdown + botón Copiar ======
 function render(role, mdText){
   const row = document.createElement("div");
   row.className = "row " + (role === "assistant" ? "assistant" : "user");
@@ -71,7 +243,6 @@ function render(role, mdText){
       btn.textContent = "Copiado ✓";
       setTimeout(()=> btn.textContent = "Copiar", 1100);
     });
-    // insert head justo antes del <pre>
     pre.parentNode.insertBefore(head, pre);
     head.appendChild(btn);
   });
@@ -80,54 +251,16 @@ function render(role, mdText){
   msgs.appendChild(row);
   msgs.scrollTop = msgs.scrollHeight;
 
-  // Persistencia
+  // Persistencia del chat
   saveToHistory(role, mdText);
 }
 function userMsg(text){ render("user", escapeHTML(text)); }
 function botMsg(text){ render("assistant", text); }
 
-// === Respuesta con intención mejorada + fallback ===
-function respond(q){
-  showTyping(true);
-  setTimeout(() => {
-    showTyping(false);
-    const qn = norm(q);
-
-    // Intenciones ampliadas
-    if ( /(servicios|qué hacen|que hacen|ofrecen|todo lo que hacen)/.test(qn) ) return botMsg(KB.servicios);
-    if ( /(web|landing|tienda|ecommerce|shopify|woocommerce|página|pagina)/.test(qn) ) return botMsg(KB.web);
-    if ( /(automat|whatsapp|manychat|make|bot|ia|integraci[oó]n|crm)/.test(qn) ) return botMsg(KB.automat);
-    if ( /(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto|cotizar)/.test(qn) ) return botMsg(KB.cotiz);
-
-    // Pequeño buscador difuso
-    const hit = smallSearch(qn);
-    if (hit) return botMsg(hit);
-
-    // Fallback
-    botMsg("Puedo ayudarte con **servicios**, **páginas web**, **automatizaciones** y **cotización**. ¿Qué necesitas exactamente?\n\nEj.: *“Landing + WhatsApp”*, *“Calendarizar contenido con IA”*." + CTA);
-  }, 420 + Math.random()*260);
-}
-
-// === Buscador difuso muy simple ===
-function smallSearch(q){
-  const pairs = [
-    [KB.servicios, ["branding","seo social","growth","ads","ar","reels","tiktok","shorts","contenido"]],
-    [KB.web,       ["web","landing","tienda","ecommerce","shopify","woocommerce","velocidad","conversion","analitica","analytics"]],
-    [KB.automat,   ["automat","manychat","whatsapp","make","bot","flow","crm","integracion","integración"]],
-    [KB.cotiz,     ["precio","cotiz","presupuesto","propuesta","valor"]]
-  ];
-  let best=null,score=0;
-  pairs.forEach(([text,keys])=>{
-    const s = keys.reduce((acc,k)=> acc + (q.includes(k)?1:0), 0);
-    if (s>score){score=s; best=text;}
-  });
-  return score>0 ? best : null;
-}
-
-// === Typing ===
+// ====== Utilidades UI ======
 function showTyping(v){ typing.style.display = v ? "flex" : "none"; }
 
-// === Mini Markdown ===
+// ====== Mini Markdown ======
 function mdToHTML(md){
   // bloques ```code```
   md = md.replace(/```([\s\S]*?)```/g, (_,code)=> `<pre><code>${escapeHTML(code.trim())}</code></pre>`);
@@ -156,7 +289,23 @@ function norm(s){return (s||'').toLowerCase()
   .trim();
 }
 
-// === Persistencia en localStorage ===
+// ====== Validaciones ======
+function isValidPhone(v){
+  // Acepta formatos como: 3001234567, 301 123 4567, +57 3001234567, 57 3001234567
+  const d = onlyDigits(v);
+  // Colombia: 10 dígitos celulares (3xx...), opcional prefijo 57
+  if (/^57\d{10}$/.test(d)) return true;
+  if (/^\d{10}$/.test(d))   return true;
+  return false;
+}
+function cleanPhone(v){
+  let d = onlyDigits(v);
+  if (/^\d{10}$/.test(d)) d = "57" + d; // agrega prefijo país si falta
+  return d;
+}
+function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
+
+// ====== Persistencia (chat + flujo + leads) ======
 function saveToHistory(role, text){
   const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   arr.push({ role, text, t: Date.now() });
@@ -169,18 +318,26 @@ function restoreHistory(){
     if (m.role === 'assistant') botMsg(m.text);
     else userMsg(m.text);
   });
+  // Si había flujo activo guardado, invitar a retomarlo
+  const savedFlow = loadFlowState();
+  if (savedFlow?.activo){
+    flow = savedFlow;
+    botMsg("Teníamos un **flujo de cotización** pendiente. ¿Deseas **continuar**? Si prefieres salir, escribe `cancelar`.");
+  }
 }
 function historyEmpty(){
   const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   return arr.length === 0;
 }
+function saveFlowState(){
+  localStorage.setItem(FLOW_KEY, JSON.stringify(flow));
+}
+function loadFlowState(){
+  try { return JSON.parse(localStorage.getItem(FLOW_KEY) || "null"); }
+  catch { return null; }
+}
 
 /* ========= (Opcional) Hook para backend RAG / LLM =========
    Si luego quieres respuestas generativas:
-   1) Monta un endpoint (por ej. /api/ask) que reciba {query, history[]} y devuelva {answer}.
-   2) Reemplaza el cuerpo de respond() por un fetch:
-      fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query:q, history: JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]") })
-      }).then(r=>r.json()).then(d=> botMsg(d.answer || KB.servicios));
-   Mantén el KB como fallback si el backend no responde.
+   Reemplaza el cuerpo de respond() por un fetch al backend y conserva route() para respetar el flujo.
 ============================================================= */
