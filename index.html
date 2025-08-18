@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Asistente • Centro Digital de Diseño</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root{
       --bg:#0b0f14; --surface:#111827; --user:#1f2937; --border:#232b35;
@@ -18,21 +18,43 @@
     .title{font-weight:700}
     .wrap{flex:1;display:flex;justify-content:center;overflow:auto}
     .col{width:100%;max-width:var(--maxw);padding:16px;display:flex;flex-direction:column}
-    .messages{flex:1;display:flex;flex-direction:column;gap:12px}
+    .messages{flex:1;display:flex;flex-direction:column;gap:12px;padding-bottom:10px}
     .row{display:flex;gap:10px}
     .avatar{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700}
     .assistant .avatar{background:#0a201a;color:#aaf}
     .user{justify-content:flex-end}
     .user .avatar{order:2;background:#1b2430;color:#fff}
-    .bubble{max-width:80%;padding:12px 14px;border-radius:var(--radius);line-height:1.5}
+    .bubble{max-width:80%;padding:12px 14px;border-radius:var(--radius);line-height:1.55;border:1px solid var(--border)}
     .assistant .bubble{background:var(--surface)}
     .user .bubble{background:var(--user)}
-    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
     .chip{padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text);cursor:pointer}
+
     .composer-wrap{padding:12px;border-top:1px solid var(--border);background:#0e141b}
     .composer{max-width:var(--maxw);margin:0 auto;display:flex;gap:8px}
     .input{flex:1;border:1px solid var(--border);border-radius:14px;padding:12px;color:var(--text);background:#0f1720}
     .send{background:var(--accent);border:none;padding:0 18px;border-radius:12px;font-weight:700;cursor:pointer;color:#fff}
+
+    /* Markdown */
+    .bubble h1,.bubble h2,.bubble h3{margin:6px 0 8px;font-weight:700}
+    .bubble h1{font-size:18px}.bubble h2{font-size:16px}.bubble h3{font-size:15px}
+    .bubble p{margin:8px 0}
+    .bubble ul{margin:8px 0 8px 18px}
+    .bubble code{font-family:"JetBrains Mono",ui-monospace,monospace;background:var(--code-bg);border:1px solid var(--code-br);padding:2px 6px;border-radius:8px}
+    pre{background:var(--code-bg);border:1px solid var(--code-br);padding:12px;border-radius:12px;overflow:auto;margin:8px 0}
+    pre code{background:none;border:none;padding:0;white-space:pre-wrap}
+
+    .code-head{display:flex;justify-content:space-between;align-items:center;margin-top:6px;color:var(--muted);font-size:12px}
+    .copy{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;padding:6px 10px;cursor:pointer}
+
+    /* Typing */
+    .typing{display:none;align-items:center;gap:8px;color:var(--muted);font-size:14px;margin:4px 0 0 38px}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.6;animation:blink 1.2s infinite}
+    .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+    @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+    .bar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .ghost-sm{border:1px solid var(--border);background:transparent;color:var(--text);padding:6px 10px;border-radius:10px;font-size:13px;cursor:pointer}
   </style>
 </head>
 <body>
@@ -43,11 +65,20 @@
 
   <div class="wrap">
     <div class="col">
+      <div class="bar">
+        <button id="clear" class="ghost-sm">🧹 Limpiar chat</button>
+        <span style="color:var(--muted);font-size:13px">El historial se guarda en este navegador.</span>
+      </div>
+
       <div id="messages" class="messages"></div>
+      <div id="typing" class="typing" aria-live="polite">
+        <span>Escribiendo</span><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+
       <div class="chips">
         <button class="chip" data-q="¿Qué servicios ofrecen?">Servicios</button>
-        <button class="chip" data-q="¿Diseñan páginas web?">Páginas web</button>
-        <button class="chip" data-q="¿Automatizan WhatsApp?">Automatizaciones</button>
+        <button class="chip" data-q="¿Diseñan páginas web y tiendas?">Páginas web</button>
+        <button class="chip" data-q="¿Automatizan WhatsApp y ManyChat?">Automatizaciones</button>
         <button class="chip" data-q="¿Cómo cotizo?">Cotización</button>
       </div>
     </div>
