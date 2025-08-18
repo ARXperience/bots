@@ -10,6 +10,10 @@ const STORAGE_KEY = 'cdd_chat_history_v1';
 const QUOTE_KEY   = 'cdd_quote_leads_v1';
 const FLOW_KEY    = 'cdd_quote_flow_state_v1';
 
+// === Datos oficiales de contacto ===
+const OFICIAL_PHONE = "573028618806";
+const OFICIAL_MAIL  = "centrodigitaldediseno@gmail.com";
+
 // === Base de conocimiento (con CTA integrado) ===
 const CTA = "\n\n**Contáctanos:** WhatsApp +57 000 000 0000 · hola@centrodigitaldediseno.com";
 const KB = {
