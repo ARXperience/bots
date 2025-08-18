@@ -222,9 +222,22 @@ function render(role, mdText){
 
   const bub = document.createElement("div");
   bub.className = "bubble";
+  bub.innerHTML = mdToHTML(mdText);
 
-  // 1) Markdown → HTML
-  let html = mdToHTML(mdText);
+  row.appendChild(av); 
+  row.appendChild(bub);
+  msgs.appendChild(row);
+
+  // ✅ Autoscroll suave y garantizado
+  requestAnimationFrame(() => {
+    msgs.scrollTo({
+      top: msgs.scrollHeight,
+      behavior: "smooth"
+    });
+  });
+
+  saveToHistory(role, mdText);
+}
 
   // 2) Auto-convertir líneas tipo "WhatsApp: https://..." y "Email: mailto:..."
   html = html
