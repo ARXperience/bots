@@ -1,5 +1,5 @@
-// bot.js — PRO + Flujo de Cotización + Botones (contacto oficial) + Sugerencias
-// FIX móvil: botones 100% clicables (delegación de eventos) + autoscroll robusto
+// bot.js — PRO + Flujo de Cotización + Botones con estilo inline + Auto-linkify
+// (Markdown + Copiar + Typing + Persistencia)
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
 const send  = document.getElementById('send');
@@ -31,7 +31,9 @@ const KB = {
 };
 
 // === Estado del flujo de cotización ===
-let flow = loadFlowState() || { activo:false, paso:0, datos:{ nombre:"", servicios:"", empresa:"", telefono:"" } };
+let flow = loadFlowState() || {
+  activo: false, paso: 0, datos: { nombre:"", servicios:"", empresa:"", telefono:"" }
+};
 
 // ====== Arranque ======
 restoreHistory();
@@ -46,8 +48,12 @@ send.onclick = () => {
   userMsg(txt);
   route(txt);
 };
-input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); } });
-document.querySelectorAll(".chip").forEach(c => { c.onclick = () => { userMsg(c.dataset.q); route(c.dataset.q); }; });
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); }
+});
+document.querySelectorAll(".chip").forEach(c => {
+  c.onclick = () => { userMsg(c.dataset.q); route(c.dataset.q); };
+});
 if (clear) {
   clear.onclick = () => {
     localStorage.removeItem(STORAGE_KEY);
@@ -59,20 +65,7 @@ if (clear) {
   };
 }
 
-// === Delegación de eventos para que los botones funcionen en móvil/iOS/Android ===
-msgs.addEventListener('click', onActionLink, { passive: false });
-msgs.addEventListener('touchend', onActionLink, { passive: false });
-function onActionLink(e){
-  const a = e.target.closest('a[data-link="external"]');
-  if (!a) return;
-  e.preventDefault();
-  try {
-    // Abrimos en la misma pestaña para evitar bloqueos de popups en móvil
-    window.location.href = a.getAttribute('href');
-  } catch { /* noop */ }
-}
-
-// ====== Router principal ======
+// ====== Router principal (flujo o respuestas estándar) ======
 function route(q){
   if (/^cancelar$/i.test(q.trim())) {
     if (flow.activo){
@@ -84,7 +77,9 @@ function route(q){
   if (flow.activo) { handleCotizacion(q); return; }
 
   const qn = norm(q);
-  if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) { startCotizacion(); return; }
+  if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) {
+    startCotizacion(); return;
+  }
   respond(q);
 }
 
@@ -95,33 +90,36 @@ function startCotizacion(){
   botMsg("¡Perfecto! Para darte una **cotización personalizada** necesito unos datos.\n\n1️⃣ ¿Cuál es tu **nombre completo**?\n\n*(Puedes escribir `cancelar` para salir del flujo.)*");
 }
 
-function handleCotizacion(txt){
+function handleCotizacion(respuesta){
+  const text = respuesta.trim();
   switch(flow.paso){
-    case 1:
-      flow.datos.nombre = txt;
+    case 1: {
+      flow.datos.nombre = text;
       flow.paso = 2; saveFlowState();
-      botMsg(`Gracias, **${escapeHTML(txt)}**.  
-2️⃣ Cuéntame: ¿Qué **servicios** te interesan?  
-_Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);
+      botMsg(`Gracias, **${escapeHTML(text)}**. 2️⃣ Cuéntame: ¿Qué **servicios** te interesan?\n_Ej.: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);
       break;
-
-    case 2:
-      flow.datos.servicios = txt;
+    }
+    case 2: {
+      flow.datos.servicios = text;
       flow.paso = 3; saveFlowState();
       botMsg("3️⃣ ¿Cómo se llama tu **empresa o proyecto**?");
       break;
-
-    case 3:
-      flow.datos.empresa = txt;
+    }
+    case 3: {
+      flow.datos.empresa = text;
       flow.paso = 4; saveFlowState();
-      botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono**?");
+      botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono** para compartirte la propuesta?");
       break;
-
-    case 4:
-      flow.datos.telefono = txt; // (puedes validar con isValidPhone si deseas)
+    }
+    case 4: {
+      if (!isValidPhone(text)) {
+        botMsg("Parece que el número no es válido. Intenta con un formato como `3001234567` o incluye código de país `+57 3001234567`.");
+        return;
+      }
+      flow.datos.telefono = cleanPhone(text);
       finalizeQuote();
       break;
-
+    }
     default:
       flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
       saveFlowState();
@@ -130,24 +128,27 @@ _Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con brand
 }
 
 function finalizeQuote(){
-  // Guardar lead
+  // Guardar lead en localStorage
   const leads = JSON.parse(localStorage.getItem(QUOTE_KEY) || "[]");
   const lead = { ...flow.datos, fecha: new Date().toISOString() };
   leads.push(lead);
   localStorage.setItem(QUOTE_KEY, JSON.stringify(leads));
 
-  // Resumen + CTAs (a contacto oficial)
+  // Botones con datos reales
   const { nombre, servicios, empresa, telefono } = flow.datos;
-  const wappText = encodeURIComponent(`Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`);
+  const wappText = encodeURIComponent(
+    `Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`
+  );
   const mailBody = encodeURIComponent(
 `Nombre: ${nombre}
 Servicios: ${servicios}
 Empresa/Proyecto: ${empresa}
 Teléfono: ${telefono}
 
-Mensaje: Hola, quiero avanzar con la cotización.`);
+Mensaje: Hola, quiero avanzar con la cotización.`
+  );
 
-  const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
+  const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
 
   const resumen =
 `### ¡Genial, ${escapeHTML(nombre)}! 🙌
@@ -156,11 +157,11 @@ Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te co
 **Resumen**
 - **Servicios:** ${escapeHTML(servicios)}
 - **Empresa/Proyecto:** ${escapeHTML(empresa)}
-- **WhatsApp/Teléfono del cliente:** ${escapeHTML(telefono)}
+- **WhatsApp/Teléfono:** ${escapeHTML(telefono)}
 
 **Acceso rápido**  
-<a href="https://wa.me/${OFICIAL_PHONE}?text=${wappText}" data-link="external" style="${btnStyle}">📲 WhatsApp Oficial</a>
-<a href="mailto:${OFICIAL_MAIL}?subject=Cotización&body=${mailBody}" data-link="external" style="${btnStyle}">✉️ Email Oficial</a>
+<a href="https://wa.me/${OFICIAL_PHONE}?text=${wappText}" target="_blank" style="${btnStyle}">📲 WhatsApp Oficial</a>
+<a href="mailto:${OFICIAL_MAIL}?subject=Cotización&body=${mailBody}" style="${btnStyle}">✉️ Email Oficial</a>
 
 > Si necesitas corregir algo, escribe **cotizar** para iniciar nuevamente.`;
 
@@ -169,178 +170,3 @@ Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te co
   botMsg(resumen);
   botMsg(KB.cotiz);
 }
-
-// ====== Respuestas estándar ======
-function respond(q){
-  showTyping(true);
-  setTimeout(() => {
-    showTyping(false);
-    const qn = norm(q);
-
-    if ( /(servicios|qué hacen|que hacen|ofrecen|todo lo que hacen)/.test(qn) ) return botMsg(KB.servicios);
-    if ( /(web|landing|tienda|ecommerce|shopify|woocommerce|página|pagina)/.test(qn) ) return botMsg(KB.web);
-    if ( /(automat|whatsapp|manychat|make|bot|ia|integraci[oó]n|crm)/.test(qn) ) return botMsg(KB.automat);
-    if ( /(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto|cotizar)/.test(qn) ) {
-      botMsg(KB.cotiz + "\n\n¿Quieres que **inicie el flujo de cotización** aquí mismo? Escribe **cotizar**.");
-      return;
-    }
-
-    const hit = smallSearch(qn);
-    if (hit) return botMsg(hit);
-
-    botMsg("Puedo ayudarte con **servicios**, **páginas web**, **automatizaciones** y **cotización**. ¿Qué necesitas exactamente?\n\nEj.: *“Landing + WhatsApp”*, *“Calendarizar contenido con IA”*." + CTA);
-  }, 420 + Math.random()*260);
-}
-
-// ====== Buscador difuso muy simple ======
-function smallSearch(q){
-  const pairs = [
-    [KB.servicios, ["branding","seo social","growth","ads","ar","reels","tiktok","shorts","contenido"]],
-    [KB.web,       ["web","landing","tienda","ecommerce","shopify","woocommerce","velocidad","conversion","analitica","analytics","crm","whatsapp"]],
-    [KB.automat,   ["automat","manychat","whatsapp","make","bot","flow","crm","integracion","integración"]],
-    [KB.cotiz,     ["precio","cotiz","presupuesto","propuesta","valor"]]
-  ];
-  let best=null,score=0;
-  pairs.forEach(([text,keys])=>{
-    const s = keys.reduce((acc,k)=> acc + (q.includes(k)?1:0), 0);
-    if (s>score){score=s; best=text;}
-  });
-  return score>0 ? best : null;
-}
-
-// ====== Render con Markdown + Copiar + AUTOSCROLL ROBUSTO ======
-function render(role, mdText){
-  const row = document.createElement("div");
-  row.className = "row " + (role === "assistant" ? "assistant" : "user");
-
-  const av = document.createElement("div");
-  av.className = "avatar";
-  av.textContent = role === "assistant" ? "AI" : "Tú";
-
-  const bub = document.createElement("div");
-  bub.className = "bubble";
-
-  // Markdown → HTML
-  let html = mdToHTML(mdText);
-
-  // Autolink “WhatsApp: https://… / Email: mailto:…”, como botones
-  html = html
-    .replace(/WhatsApp:\s*(https?:\/\/[^\s<]+)/gi, (_m, url) => {
-      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
-      return `<a href="${url}" data-link="external" style="${btnStyle}">📲 WhatsApp</a>`;
-    })
-    .replace(/Email:\s*(mailto:[^\s<]+)/gi, (_m, url) => {
-      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
-      return `<a href="${url}" data-link="external" style="${btnStyle}">✉️ Email</a>`;
-    });
-
-  bub.innerHTML = html;
-
-  // Botón Copiar en <pre>
-  bub.querySelectorAll("pre").forEach(pre => {
-    const head = document.createElement("div");
-    head.className = "code-head";
-    head.innerHTML = `<span>código</span>`;
-    const btn = document.createElement("button");
-    btn.className = "copy";
-    btn.textContent = "Copiar";
-    btn.addEventListener("click", ()=>{
-      const code = pre.querySelector("code")?.innerText || pre.innerText;
-      navigator.clipboard.writeText(code);
-      btn.textContent = "Copiado ✓";
-      setTimeout(()=> btn.textContent = "Copiar", 1100);
-    });
-    pre.parentNode.insertBefore(head, pre);
-    head.appendChild(btn);
-  });
-
-  row.appendChild(av);
-  row.appendChild(bub);
-  msgs.appendChild(row);
-
-  autoScroll();
-  saveToHistory(role, mdText);
-}
-
-// ====== Autoscroll robusto (móvil/desktop) ======
-function autoScroll() {
-  msgs.scrollTop = msgs.scrollHeight;
-  requestAnimationFrame(() => { msgs.scrollTop = msgs.scrollHeight; });
-  setTimeout(() => {
-    msgs.scrollTop = msgs.scrollHeight;
-    const last = msgs.lastElementChild;
-    if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end', inline: 'nearest' });
-  }, 120);
-}
-
-// Refuerzos móviles
-window.addEventListener('resize', autoScroll);
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', autoScroll);
-  window.visualViewport.addEventListener('scroll', autoScroll);
-}
-input.addEventListener('focus', autoScroll);
-input.addEventListener('blur', autoScroll);
-
-// ====== Utilidades UI ======
-function showTyping(v){ typing.style.display = v ? "flex" : "none"; }
-
-// ====== Mini Markdown ======
-function mdToHTML(md){
-  md = md.replace(/```([\s\S]*?)```/g, (_,code)=> `<pre><code>${escapeHTML(code.trim())}</code></pre>`);
-  md = md
-    .replace(/^### (.*)$/gim,'<h3>$1</h3>')
-    .replace(/^## (.*)$/gim,'<h2>$1</h2>')
-    .replace(/^# (.*)$/gim,'<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/`([^`]+?)`/g,'<code>$1</code>');
-  const lines = md.split('\n').map(line=>{
-    if (/^\s*-\s+/.test(line)) return `<li>${line.replace(/^\s*-\s+/, '')}</li>`;
-    if (/^\s*•\s+/.test(line)) return `<li>${line.replace(/^\s*•\s+/, '')}</li>`;
-    if (/^<h\d|^<pre|^<ul|^<li|^<\/li|^<\/ul|^<a /.test(line)) return line;
-    return line.trim()? `<p>${line}</p>` : '<p style="margin:4px 0"></p>';
-  });
-  const joined = lines.join('\n').replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
-  return joined;
-}
-function escapeHTML(s){return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
-function norm(s){return (s||'').toLowerCase()
-  .normalize('NFD').replace(/\p{Diacritic}/gu,'')
-  .replace(/[^a-z0-9áéíóúñü\s]/g,' ')
-  .replace(/\s+/g,' ')
-  .trim();
-}
-
-// ====== (Opcional) Validaciones de teléfono ======
-function isValidPhone(v){
-  const d = onlyDigits(v);
-  if (/^57\d{10}$/.test(d)) return true;
-  if (/^\d{10}$/.test(d))   return true;
-  return false;
-}
-function cleanPhone(v){
-  let d = onlyDigits(v);
-  if (/^\d{10}$/.test(d)) d = "57" + d;
-  return d;
-}
-function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
-
-// ====== Persistencia ======
-function saveToHistory(role, text){
-  const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  arr.push({ role, text, t: Date.now() });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-}
-function restoreHistory(){
-  const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  if (!arr.length) return;
-  arr.forEach(m => { if (m.role === 'assistant') botMsg(m.text); else userMsg(m.text); });
-  const savedFlow = loadFlowState();
-  if (savedFlow?.activo){
-    flow = savedFlow;
-    botMsg("Teníamos un **flujo de cotización** pendiente. ¿Deseas **continuar**? Si prefieres salir, escribe `cancelar`.");
-  }
-}
-function historyEmpty(){ return (JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]").length === 0); }
-function saveFlowState(){ localStorage.setItem(FLOW_KEY, JSON.stringify(flow)); }
-function loadFlowState(){ try { return JSON.parse(localStorage.getItem(FLOW_KEY) || "null"); } catch { return null; } }
