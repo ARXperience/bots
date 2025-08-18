@@ -1,4 +1,4 @@
-// app.js — Studio Chatbot v2 (RAG local con síntesis y anti-eco)
+// app2.js — Studio Chatbot v2 (RAG local con síntesis y anti-eco)
 (() => {
   'use strict';
 
