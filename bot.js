@@ -1,5 +1,5 @@
 // bot.js — PRO + Flujo de Cotización + Botones (contacto oficial) + Sugerencias
-// FIX móvil: autoscroll robusto (iOS/Android) + hooks de teclado/viewport
+// FIX móvil: botones 100% clicables (delegación de eventos) + autoscroll robusto
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
 const send  = document.getElementById('send');
@@ -59,6 +59,19 @@ if (clear) {
   };
 }
 
+// === Delegación de eventos para que los botones funcionen en móvil/iOS/Android ===
+msgs.addEventListener('click', onActionLink, { passive: false });
+msgs.addEventListener('touchend', onActionLink, { passive: false });
+function onActionLink(e){
+  const a = e.target.closest('a[data-link="external"]');
+  if (!a) return;
+  e.preventDefault();
+  try {
+    // Abrimos en la misma pestaña para evitar bloqueos de popups en móvil
+    window.location.href = a.getAttribute('href');
+  } catch { /* noop */ }
+}
+
 // ====== Router principal ======
 function route(q){
   if (/^cancelar$/i.test(q.trim())) {
@@ -71,9 +84,7 @@ function route(q){
   if (flow.activo) { handleCotizacion(q); return; }
 
   const qn = norm(q);
-  if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) {
-    startCotizacion(); return;
-  }
+  if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) { startCotizacion(); return; }
   respond(q);
 }
 
@@ -107,7 +118,7 @@ _Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con brand
       break;
 
     case 4:
-      flow.datos.telefono = txt; // (si quieres validar, puedes usar isValidPhone/cleanPhone)
+      flow.datos.telefono = txt; // (puedes validar con isValidPhone si deseas)
       finalizeQuote();
       break;
 
@@ -136,7 +147,7 @@ Teléfono: ${telefono}
 
 Mensaje: Hola, quiero avanzar con la cotización.`);
 
-  const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
+  const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
 
   const resumen =
 `### ¡Genial, ${escapeHTML(nombre)}! 🙌
@@ -148,8 +159,8 @@ Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te co
 - **WhatsApp/Teléfono del cliente:** ${escapeHTML(telefono)}
 
 **Acceso rápido**  
-<a href="https://wa.me/${OFICIAL_PHONE}?text=${wappText}" target="_blank" style="${btnStyle}">📲 WhatsApp Oficial</a>
-<a href="mailto:${OFICIAL_MAIL}?subject=Cotización&body=${mailBody}" style="${btnStyle}">✉️ Email Oficial</a>
+<a href="https://wa.me/${OFICIAL_PHONE}?text=${wappText}" data-link="external" style="${btnStyle}">📲 WhatsApp Oficial</a>
+<a href="mailto:${OFICIAL_MAIL}?subject=Cotización&body=${mailBody}" data-link="external" style="${btnStyle}">✉️ Email Oficial</a>
 
 > Si necesitas corregir algo, escribe **cotizar** para iniciar nuevamente.`;
 
@@ -212,15 +223,15 @@ function render(role, mdText){
   // Markdown → HTML
   let html = mdToHTML(mdText);
 
-  // Autolink “WhatsApp: https://… / Email: mailto:…”
+  // Autolink “WhatsApp: https://… / Email: mailto:…”, como botones
   html = html
     .replace(/WhatsApp:\s*(https?:\/\/[^\s<]+)/gi, (_m, url) => {
-      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
-      return `<a href="${url}" target="_blank" style="${btnStyle}">📲 WhatsApp</a>`;
+      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
+      return `<a href="${url}" data-link="external" style="${btnStyle}">📲 WhatsApp</a>`;
     })
     .replace(/Email:\s*(mailto:[^\s<]+)/gi, (_m, url) => {
-      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
-      return `<a href="${url}" style="${btnStyle}">✉️ Email</a>`;
+      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0)";
+      return `<a href="${url}" data-link="external" style="${btnStyle}">✉️ Email</a>`;
     });
 
   bub.innerHTML = html;
@@ -247,23 +258,14 @@ function render(role, mdText){
   row.appendChild(bub);
   msgs.appendChild(row);
 
-  // ✅ AUTOSCROLL: versión móvil robusta
   autoScroll();
-
   saveToHistory(role, mdText);
 }
 
 // ====== Autoscroll robusto (móvil/desktop) ======
 function autoScroll() {
-  // 1) intento inmediato
   msgs.scrollTop = msgs.scrollHeight;
-
-  // 2) tras el pintado (asegura cálculo de altura)
-  requestAnimationFrame(() => {
-    msgs.scrollTop = msgs.scrollHeight;
-  });
-
-  // 3) pequeño retraso por si hay fuentes/imagenes async (iOS Safari)
+  requestAnimationFrame(() => { msgs.scrollTop = msgs.scrollHeight; });
   setTimeout(() => {
     msgs.scrollTop = msgs.scrollHeight;
     const last = msgs.lastElementChild;
@@ -271,7 +273,7 @@ function autoScroll() {
   }, 120);
 }
 
-// Reforzar en eventos móviles comunes
+// Refuerzos móviles
 window.addEventListener('resize', autoScroll);
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', autoScroll);
