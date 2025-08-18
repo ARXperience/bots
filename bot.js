@@ -1,4 +1,5 @@
-// bot.js — versión PRO + Flujo de Cotización (Markdown + Copiar + Typing + Persistencia)
+// bot.js — versión PRO + Flujo de Cotización + Botones de Acceso Rápido
+// (Markdown + Copiar + Typing + Persistencia)
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
 const send  = document.getElementById('send');
@@ -30,6 +31,7 @@ let flow = loadFlowState() || {
   activo: false, paso: 0, datos: { nombre:"", servicios:"", empresa:"", telefono:"" }
 };
 
+// ====== Arranque ======
 restoreHistory();
 if (historyEmpty()) {
   botMsg("👋 **Hola, soy el asistente del Centro Digital de Diseño.**\nRespondo sobre **servicios**, **páginas web**, **automatizaciones** y **cotización**.");
@@ -125,7 +127,6 @@ function handleCotizacion(respuesta){
       break;
     }
     default:
-      // Por si acaso se desincroniza, reiniciamos el flujo
       flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
       saveFlowState();
       botMsg("He reiniciado el flujo. Escribe **cotizar** para empezar de nuevo.");
@@ -133,13 +134,13 @@ function handleCotizacion(respuesta){
 }
 
 function finalizeQuote(){
-  // Guardar lead en localStorage (histórico)
+  // Guardar lead en localStorage
   const leads = JSON.parse(localStorage.getItem(QUOTE_KEY) || "[]");
   const lead = { ...flow.datos, fecha: new Date().toISOString() };
   leads.push(lead);
   localStorage.setItem(QUOTE_KEY, JSON.stringify(leads));
 
-  // Preparar resumen y CTAs
+  // Preparar resumen y CTAs como BOTONES
   const { nombre, servicios, empresa, telefono } = flow.datos;
   const wappText = encodeURIComponent(
     `Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`
@@ -162,16 +163,15 @@ Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te co
 - **Empresa/Proyecto:** ${escapeHTML(empresa)}
 - **WhatsApp/Teléfono:** ${escapeHTML(telefono)}
 
-**Acceso rápido**
-- WhatsApp: https://wa.me/57${onlyDigits(telefono).replace(/^57/,'')}?text=${wappText}
-- Email: mailto:hola@centrodigitaldediseno.com?subject=Cotización&body=${mailBody}
+**Acceso rápido**  
+<a href="https://wa.me/57${onlyDigits(telefono).replace(/^57/,'')}?text=${wappText}" target="_blank" class="btn-link">📲 WhatsApp</a>
+<a href="mailto:hola@centrodigitaldediseno.com?subject=Cotización&body=${mailBody}" class="btn-link">✉️ Email</a>
 
 > Si necesitas corregir algo, escribe **cotizar** para iniciar nuevamente.`;
 
   flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
   saveFlowState();
   botMsg(resumen);
-  // También mostramos el bloque estándar de cotización como contexto
   botMsg(KB.cotiz);
 }
 
@@ -186,16 +186,13 @@ function respond(q){
     if ( /(web|landing|tienda|ecommerce|shopify|woocommerce|página|pagina)/.test(qn) ) return botMsg(KB.web);
     if ( /(automat|whatsapp|manychat|make|bot|ia|integraci[oó]n|crm)/.test(qn) ) return botMsg(KB.automat);
     if ( /(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto|cotizar)/.test(qn) ) {
-      // muestra bloque y ofrece iniciar flujo
       botMsg(KB.cotiz + "\n\n¿Quieres que **inicie el flujo de cotización** aquí mismo? Escribe **cotizar**.");
       return;
     }
 
-    // Pequeño buscador difuso
     const hit = smallSearch(qn);
     if (hit) return botMsg(hit);
 
-    // Fallback
     botMsg("Puedo ayudarte con **servicios**, **páginas web**, **automatizaciones** y **cotización**. ¿Qué necesitas exactamente?\n\nEj.: *“Landing + WhatsApp”*, *“Calendarizar contenido con IA”*." + CTA);
   }, 420 + Math.random()*260);
 }
