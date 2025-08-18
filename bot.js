@@ -66,7 +66,7 @@ function startCotizacion(){
 }
 function handleCotizacion(txt){
   switch(flow.paso){
-    case 1: flow.datos.nombre=txt; flow.paso=2; saveFlowState(); botMsg(`Gracias, **${escapeHTML(txt)}**. 2️⃣ ¿Qué **servicios** te interesan?`); break;
+    case 1: flow.datos.nombre=txt; flow.paso=2; saveFlowState(); botMsg(`Gracias, **${escapeHTML(txt)}**. 2️⃣ ¿Qué **servicios** te interesan? _Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);`); break;
     case 2: flow.datos.servicios=txt; flow.paso=3; saveFlowState(); botMsg("3️⃣ ¿Cómo se llama tu **empresa o proyecto**?"); break;
     case 3: flow.datos.empresa=txt; flow.paso=4; saveFlowState(); botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono**?"); break;
     case 4: flow.datos.telefono=txt; finalizeQuote(); break;
