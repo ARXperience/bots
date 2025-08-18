@@ -1,135 +1,187 @@
-// bot.js — UI estilo GPT5 + KB CDD
-function initAssistant(opts={mode:'embedded'}) {
+// bot.js — interfaz estilo ChatGPT + KB de Centro Digital de Diseño
+(function(){
   const ui = {
     messages: document.getElementById('messages'),
     typing: document.getElementById('typing'),
     input: document.getElementById('input'),
     send: document.getElementById('send'),
-    chips: document.getElementById('chips'),
-    chat: document.getElementById('chat'),
-    fab: document.getElementById('fab'),
-    panel: document.getElementById('panel'),
   };
 
-  // Modo flotante (clona chat)
-  if (opts.mode === 'floating') {
-    const clone = ui.chat.cloneNode(true);
-    ui.panel.appendChild(clone);
-    ui.panel.classList.add('open');
-    ui.chat.style.display = 'none';
-    // Re-map refs
-    ui.messages = ui.panel.querySelector('#messages');
-    ui.typing   = ui.panel.querySelector('#typing');
-    ui.input    = ui.panel.querySelector('#input');
-    ui.send     = ui.panel.querySelector('#send');
-    ui.chips    = ui.panel.querySelector('#chips');
-    ui.fab.style.display = 'grid';
-    ui.panel.classList.remove('open');
-    ui.fab.addEventListener('click', ()=> ui.panel.classList.toggle('open'));
-  }
-
   const KB = buildKB();
-  const state = { history: [] };
+  greet(); // primer mensaje + chips
 
-  greet();
-
-  // Handlers
   ui.send.addEventListener('click', onSend);
-  ui.input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); }
+  ui.input.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); onSend(); }
   });
-  ui.chips.querySelectorAll('[data-q]').forEach(btn => {
-    btn.addEventListener('click', ()=> handleUser(btn.dataset.q));
-  });
-
-  function greet(){
-    const msg = [
-      '**Hola, soy tu asistente de Centro Digital de Diseño.**',
-      'Te ayudo con **servicios**, **proceso**, **tiempos** y **cotizaciones**.',
-      'Ejemplos: “¿Qué servicios ofrecen?”, “Necesito landing + WhatsApp”, “¿Cuánto tardan?”'
-    ].join('\n');
-    render('bot', msg);
-  }
 
   function onSend(){
-    const text = (ui.input.value || '').trim();
-    if (!text) return;
-    handleUser(text);
+    const text = (ui.input.value||'').trim();
+    if(!text) return;
+    ui.input.value = '';
+    render('user', sanitize(text));
+    think(()=> render('assistant', reply(text)));
   }
 
-  function handleUser(text){
-    ui.input.value = '';
-    render('user', text);
-    typeOn();
-    setTimeout(() => {
-      const answer = reply(text);
-      typeOff();
-      render('bot', answer);
-    }, 450 + Math.random()*250); // breve delay para realismo
+  function greet(){
+    const intro = [
+      '**Hola, soy el asistente del Centro Digital de Diseño.**',
+      'Respondo sobre **servicios**, **proceso**, **tiempos** y **cotización**.',
+      'Prueba: “¿Qué servicios ofrecen?”, “Landing + WhatsApp”, “¿Cómo cotizo?”'
+    ].join('\n');
+    render('assistant', intro);
+
+    const chips = renderChips([
+      '¿Qué servicios ofrecen?',
+      '¿Diseñan páginas web y tiendas?',
+      '¿Automatizan WhatsApp y ManyChat?',
+      '¿Cómo es el proceso y los tiempos?',
+      '¿Cómo cotizo?'
+    ]);
+    ui.messages.appendChild(chips);
   }
 
   function reply(q){
-    // precio / cotización directo
     const qn = norm(q);
-    if (/(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto)/.test(qn)) {
-      return blocks.quote;
-    }
+    if (/(precio|cu[aá]nto vale|cu[aá]nto cuesta|cotizaci[oó]n|presupuesto)/.test(qn)) return blocks.quote;
+
     const hit = searchKB(q, KB);
-    if (hit.score >= 0.22) return hit.item.answer;
+    if (hit.score >= 0.23) return hit.item.answer;
     return blocks.fallback;
   }
 
-  // ---------- KB ----------
+  // ---------- Render ----------
+  function render(role, md){
+    const row = document.createElement('div');
+    row.className = `row ${role}`;
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = role === 'assistant' ? 'AI' : 'Tú';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = mdToHTML(md);
+
+    // Botón copiar en bloques <pre>
+    bubble.querySelectorAll('pre').forEach(pre=>{
+      const head = document.createElement('div');
+      head.className = 'code-head';
+      head.innerHTML = `<span>código</span>`;
+      const btn = document.createElement('button');
+      btn.className = 'copy';
+      btn.textContent = 'Copiar';
+      btn.addEventListener('click', ()=>{
+        const code = pre.querySelector('code')?.innerText || pre.innerText;
+        navigator.clipboard.writeText(code);
+        btn.textContent = 'Copiado ✓';
+        setTimeout(()=>btn.textContent='Copiar',1100);
+      });
+      pre.parentNode.insertBefore(head, pre);
+      head.appendChild(btn);
+    });
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    ui.messages.appendChild(row);
+    ui.messages.scrollTop = ui.messages.scrollHeight;
+  }
+
+  function renderChips(labels){
+    const wrap = document.createElement('div');
+    wrap.className = 'chips';
+    labels.forEach(text=>{
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.textContent = text;
+      b.addEventListener('click', ()=>{
+        render('user', sanitize(text));
+        think(()=> render('assistant', reply(text)));
+      });
+      wrap.appendChild(b);
+    });
+    return wrap;
+  }
+
+  function think(cb){
+    ui.typing.style.display = 'flex';
+    setTimeout(()=>{ ui.typing.style.display = 'none'; cb(); }, 450 + Math.random()*300);
+  }
+
+  // ---------- Mini markdown ----------
+  function mdToHTML(md){
+    // bloque ``````
+    md = md.replace(/```([\s\S]*?)```/g, (_,code)=> `<pre><code>${escapeHTML(code.trim())}</code></pre>`);
+    // títulos + negritas + inline code
+    md = md
+      .replace(/^### (.*)$/gim,'<h3>$1</h3>')
+      .replace(/^## (.*)$/gim,'<h2>$1</h2>')
+      .replace(/^# (.*)$/gim,'<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/`([^`]+?)`/g,'<code>$1</code>');
+
+    // viñetas simples
+    const lines = md.split('\n').map(line=>{
+      if (/^\s*-\s+/.test(line)) return `<li>${line.replace(/^\s*-\s+/, '')}</li>`;
+      if (/^\s*•\s+/.test(line)) return `<li>${line.replace(/^\s*•\s+/, '')}</li>`;
+      if (/^<h\d|^<pre|^<ul|^<li|^<\/li|^<\/ul/.test(line)) return line;
+      return line.trim()? `<p>${line}</p>` : '<p style="margin:4px 0"></p>';
+    });
+
+    // agrupar <li> en <ul>
+    const joined = lines.join('\n').replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+    return joined;
+  }
+  function escapeHTML(s){return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+  function sanitize(s){return s.replace(/\s+/g,' ').trim();}
+
+  // ---------- Búsqueda ligera ----------
   function buildKB(){
     const services =
 `### ¿Qué hacemos?
 - **Páginas web con IA**: landing, web multipágina y e-commerce orientado a conversión.
-- **Branding**: identidad visual y lineamientos.
+- **Branding** (identidad visual).
 - **Contenido para redes** (Reels/TikTok/Shorts) con **SEO social**.
 - **Automatizaciones** con ManyChat, Make y WhatsApp Business API.
 - **Bots de IA** para atención y ventas 24/7.
-- **E-commerce y embudos**: optimización de tienda, checkout, analítica.
-- **Creativos con IA**: foto/video de producto, anuncios.
-- **Realidad aumentada (AR)** para campañas.
+- **E-commerce y embudos** (optimización, checkout, analítica).
+- **Creativos con IA** (foto/video de producto, anuncios).
+- **Realidad aumentada (AR)**.
 - **Ads (Meta)** y testing A/B.
-- **Growth Partner**: consultoría orientada a KPIs.`;
+- **Growth Partner** enfocado en KPIs.`;
 
     const process =
 `### Proceso & tiempos
-1. **Diagnóstico**: objetivos y audiencia (brief + llamada).
-2. **Plan & prioridades**: MVP + quick wins.
-3. **Producción por sprints**: web, contenidos y automatizaciones.
-4. **QA & medición**: eventos y dashboards básicos.
-5. **Iteración** con datos.
+1) **Diagnóstico** (brief + llamada).  
+2) **Plan/MVP** con quick wins.  
+3) **Producción por sprints** (web, contenidos, automatizaciones).  
+4) **QA + medición** (eventos y dashboards).  
+5) **Iteración** con datos.
 
-**Estimados**  
-- Landing: **1–2 semanas**  
-- Web multipágina: **3–5 semanas**  
-- Bot/automatización: **2–10 días**  
-- Calendario + 4–8 piezas: **1–2 semanas**  
-*(depende del alcance e integraciones)*`;
+**Estimados**
+- Landing: **1–2 semanas**
+- Web multipágina: **3–5 semanas**
+- Bot/automatización: **2–10 días**
+- Calendario + 4–8 piezas: **1–2 semanas**`;
 
     const web =
 `### Páginas web & tiendas
-Diseño moderno, claro y rápido, con estructura de conversión, buen copy y analítica.  
+Diseño moderno, claro y rápido (estructura de conversión, copy y analítica).  
 Integración con **WhatsApp/CRM/ManyChat** para capturar y nutrir leads.`;
 
     const autom =
 `### Automatizaciones & Bots de IA
-- **ManyChat/WhatsApp**: flujos, segmentación y campañas.  
-- **Make**: integra formularios, CRMs, Google, Email, Meta, etc.  
+- **ManyChat/WhatsApp**: flujos, segmentación, campañas.
+- **Make**: integra formularios, CRMs, Google, Email, Meta, etc.
 - **Bots de IA** entrenados con tus textos/FAQs para calificar leads y derivar a humano.`;
 
     const seoSocial =
 `### SEO para redes
-- Investigación de temas y preguntas.  
-- Guiones (gancho → valor → CTA) y **calendario editorial**.  
-- Copies, hashtags y A/B de ganchos/creatividades.`;
+- Investigación de temas/preguntas.
+- Guiones (gancho → valor → CTA) + **calendario editorial**.
+- Copies, hashtags y A/B de ganchos y creatividades.`;
 
     const portfolio =
 `### Portafolio / casos
-Ejemplos en **decoración (Alma Home)**, **alojamientos (Anfitrión Inteligente)**, **educación cripto (Staking Pro)** y negocios que buscan **automatizar**.  
-Cuéntame tu industria y te comparto ejemplos relevantes.`;
+Experiencia en **decoración (Alma Home)**, **alojamientos (Anfitrión Inteligente)**, **educación cripto (Staking Pro)** y marcas que quieren **automatizar** con IA.`;
 
     const contact =
 `### Contacto & siguientes pasos
@@ -138,11 +190,11 @@ Cuéntame tu industria y te comparto ejemplos relevantes.`;
 3) Propuesta con entregables, tiempos y valor.
 
 **Email:** hola@centrodigitaldediseno.com  
-**WhatsApp:** +57 000 000 0000 *(actualiza tu número)*`;
+**WhatsApp:** +57 000 000 0000`;
 
     const apps =
 `### Apps premium
-Gestionamos/asesoramos **apps premium** de terceros.  
+Asesoramos/gestionamos **apps premium** de terceros.  
 > Importante: **no son gratuitas**; tienen costo mensual del proveedor.`;
 
     return [
@@ -158,23 +210,23 @@ Gestionamos/asesoramos **apps premium** de terceros.
     ];
   }
 
-  // ---------- Motor de búsqueda ligero ----------
   function searchKB(q, items){
     const qn = norm(q);
     let best = {item:null, score:0};
     for (const item of items){
-      const pats = (item.patterns||[]).map(norm);
-      const kws  = (item.keywords||[]).map(norm);
+      const pats=(item.patterns||[]).map(norm), kws=(item.keywords||[]).map(norm);
       let s=0;
-      if (norm(item.title).includes(qn)) s+=.2;
-      if (norm(item.answer).includes(qn)) s+=.15;
+      if (norm(item.title).includes(qn)) s+=.18;
+      if (norm(item.answer).includes(qn)) s+=.12;
       for (const p of pats) if (qn.includes(p)) s+=.12;
-      for (const k of kws)  if (qn.includes(k)) s+=.07;
-      s += jacc(tokens(qn), new Set([...kws,...pats])) * .22;
+      for (const k of kws) if (qn.includes(k)) s+=.07;
+      s += jacc(tokens(qn), new Set([...kws,...pats])) * .23;
       if (s>best.score) best={item,score:s};
     }
     return best;
   }
+
+  // Utilidades
   const norm = s => (s||'').toLowerCase()
     .normalize('NFD').replace(/\p{Diacritic}/gu,'')
     .replace(/[^a-z0-9áéíóúñü\s]/g,' ')
@@ -182,7 +234,6 @@ Gestionamos/asesoramos **apps premium** de terceros.
   const tokens = s => new Set(norm(s).split(' ').filter(Boolean));
   const jacc = (aSet,bSet)=>{const a=new Set(aSet),b=new Set(bSet);const i=[...a].filter(x=>b.has(x));const u=new Set([...a,...b]);return u.size?i.length/u.size:0;}
 
-  // ---------- Bloques comunes ----------
   const blocks = {
     quote:
 `### Precios & cotización
@@ -192,70 +243,9 @@ Trabajamos **por alcance y objetivos**; el valor depende de páginas, integracio
 **Cómo cotizamos**
 1) **Brief** rápido + **llamada** de 15–20 min  
 2) Propuesta con **entregables, tiempos y valor**  
-3) Alineación y arranque del **Sprint 1**
-
-¿Te paso el brief y agendamos?`,
+3) Alineación y arranque del **Sprint 1**`,
     fallback:
 `Puedo ayudarte con **servicios**, **proceso**, **tiempos** y **cotización**.  
 Cuéntame tu caso (ej. “landing + automatización de WhatsApp”) y te indico el camino.`
   };
-
-  // ---------- Render con Markdown + code copy ----------
-  function render(role, content){
-    const row = document.createElement('div');
-    row.className = `msg ${role}`;
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.textContent = role === 'bot' ? 'AI' : 'Tú';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.innerHTML = mdToHTML(content);
-
-    // Añadir botones de copiar a bloques <pre><code>
-    bubble.querySelectorAll('pre').forEach(pre=>{
-      const header = document.createElement('div');
-      header.className = 'code-header';
-      header.innerHTML = `<span>bloque de código</span>`;
-      const btn = document.createElement('button');
-      btn.className = 'copy-btn';
-      btn.textContent = 'Copiar';
-      btn.addEventListener('click', ()=>{
-        const code = pre.querySelector('code')?.innerText || pre.innerText;
-        navigator.clipboard.writeText(code);
-        btn.textContent = 'Copiado ✓';
-        setTimeout(()=>btn.textContent='Copiar',1200);
-      });
-      pre.parentNode.insertBefore(header, pre);
-      header.appendChild(btn);
-    });
-
-    row.appendChild(avatar);
-    row.appendChild(bubble);
-    ui.messages.appendChild(row);
-    ui.messages.scrollTop = ui.messages.scrollHeight;
-  }
-
-  function typeOn(){ ui.typing.style.display='flex'; }
-  function typeOff(){ ui.typing.style.display='none'; }
-
-  // Mini markdown parser (titulares, negritas, listas y code)
-  function mdToHTML(md){
-    let html = md
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+?)`/g, '<code>$1</code>');
-    // listas
-    html = html.replace(/^\s*-\s+(.*)$/gim, '• $1');
-    html = html.split('\n').map(line=>{
-      if (line.startsWith('• ')) return `<li>${line.slice(2)}</li>`;
-      return `<p>${line}</p>`;
-    }).join('\n');
-    // bloques de código con ```lang
-    html = html.replace(/<p>```([\s\S]*?)```<\/p>/g, (m,code)=>`<pre><code>${escapeHTML(code.trim())}</code></pre>`);
-    return html;
-  }
-  function escapeHTML(str){return str.replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));}
-}
+})();
