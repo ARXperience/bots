@@ -135,7 +135,30 @@ function respond(q){showTyping(true);setTimeout(()=>{showTyping(false);const qn=
 },400);}
 
 // ====== Helpers ======
-function render(role,md){const r=document.createElement("div");r.className="row "+(role==="assistant"?"assistant":"user");const a=document.createElement("div");a.className="avatar";a.textContent=role==="assistant"?"AI":"Tú";const b=document.createElement("div");b.className="bubble";b.innerHTML=mdToHTML(md);r.appendChild(a);r.appendChild(b);msgs.appendChild(r);msgs.scrollTop=msgs.scrollHeight;saveToHistory(role,md);}
+function render(role, mdText){
+  const row = document.createElement("div");
+  row.className = "row " + (role === "assistant" ? "assistant" : "user");
+
+  const av = document.createElement("div");
+  av.className = "avatar";
+  av.textContent = role === "assistant" ? "AI" : "Tú";
+
+  const bub = document.createElement("div");
+  bub.className = "bubble";
+  bub.innerHTML = mdToHTML(mdText);
+
+  row.appendChild(av); 
+  row.appendChild(bub);
+  msgs.appendChild(row);
+
+  // ⬇️ AUTOSCROLL seguro
+  setTimeout(() => {
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 50);
+
+  saveToHistory(role, mdText);
+}
+
 function userMsg(t){render("user",escapeHTML(t));}function botMsg(t){render("assistant",t);}
 function showTyping(v){typing.style.display=v?"flex":"none";}
 function mdToHTML(md){md=md.replace(/```([\s\S]*?)```/g,(_,c)=>`<pre><code>${escapeHTML(c.trim())}</code></pre>`);md=md.replace(/^### (.*)$/gim,'<h3>$1</h3>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');return md.split('\n').map(l=>l.trim()?`<p>${l}</p>`:"").join('');}
