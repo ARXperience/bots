@@ -1,4 +1,4 @@
-// bot.js — versión PRO + Flujo de Cotización + Botones de Acceso Rápido
+// bot.js — PRO + Flujo de Cotización + Botones con estilo inline + Auto-linkify
 // (Markdown + Copiar + Typing + Persistencia)
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
@@ -63,7 +63,6 @@ if (clear) {
 
 // ====== Router principal (flujo o respuestas estándar) ======
 function route(q){
-  // Comando de cancelación del flujo
   if (/^cancelar$/i.test(q.trim())) {
     if (flow.activo){
       flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
@@ -71,21 +70,12 @@ function route(q){
       return botMsg("Flujo de cotización **cancelado**. Cuando quieras, escribe *cotizar* para retomarlo.");
     }
   }
+  if (flow.activo) { handleCotizacion(q); return; }
 
-  // Si el flujo está activo, manejar pasos
-  if (flow.activo) {
-    handleCotizacion(q);
-    return;
-  }
-
-  // Detectar intención de cotizar e iniciar flujo
   const qn = norm(q);
   if (/(cotiz|presupuesto|precio|cu[aá]nto vale|cu[aá]nto cuesta)/.test(qn)) {
-    startCotizacion();
-    return;
+    startCotizacion(); return;
   }
-
-  // Respuestas estándar con intención mejorada
   respond(q);
 }
 
@@ -99,25 +89,25 @@ function startCotizacion(){
 function handleCotizacion(respuesta){
   const text = respuesta.trim();
   switch(flow.paso){
-    case 1: { // Nombre
+    case 1: {
       flow.datos.nombre = text;
       flow.paso = 2; saveFlowState();
       botMsg(`Gracias, **${escapeHTML(text)}**. 2️⃣ Cuéntame: ¿Qué **servicios** te interesan?\n_Ej.: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);
       break;
     }
-    case 2: { // Servicios
+    case 2: {
       flow.datos.servicios = text;
       flow.paso = 3; saveFlowState();
       botMsg("3️⃣ ¿Cómo se llama tu **empresa o proyecto**?");
       break;
     }
-    case 3: { // Empresa
+    case 3: {
       flow.datos.empresa = text;
       flow.paso = 4; saveFlowState();
       botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono** para compartirte la propuesta?");
       break;
     }
-    case 4: { // Teléfono con validación básica
+    case 4: {
       if (!isValidPhone(text)) {
         botMsg("Parece que el número no es válido. Intenta con un formato como `3001234567` o incluye código de país `+57 3001234567`.");
         return;
@@ -140,7 +130,7 @@ function finalizeQuote(){
   leads.push(lead);
   localStorage.setItem(QUOTE_KEY, JSON.stringify(leads));
 
-  // Preparar resumen y CTAs como BOTONES
+  // Botones con ESTILO INLINE (funcionan aunque no agregues CSS)
   const { nombre, servicios, empresa, telefono } = flow.datos;
   const wappText = encodeURIComponent(
     `Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`
@@ -154,6 +144,8 @@ Teléfono: ${telefono}
 Mensaje: Hola, quiero avanzar con la cotización.`
   );
 
+  const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
+
   const resumen =
 `### ¡Genial, ${escapeHTML(nombre)}! 🙌
 Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te contactaremos en breve.
@@ -164,8 +156,8 @@ Con estos datos armamos tu propuesta con **entregables, tiempos y valor**. Te co
 - **WhatsApp/Teléfono:** ${escapeHTML(telefono)}
 
 **Acceso rápido**  
-<a href="https://wa.me/57${onlyDigits(telefono).replace(/^57/,'')}?text=${wappText}" target="_blank" class="btn-link">📲 WhatsApp</a>
-<a href="mailto:hola@centrodigitaldediseno.com?subject=Cotización&body=${mailBody}" class="btn-link">✉️ Email</a>
+<a href="https://wa.me/57${onlyDigits(telefono).replace(/^57/,'')}?text=${wappText}" target="_blank" style="${btnStyle}">📲 WhatsApp</a>
+<a href="mailto:hola@centrodigitaldediseno.com?subject=Cotización&body=${mailBody}" style="${btnStyle}">✉️ Email</a>
 
 > Si necesitas corregir algo, escribe **cotizar** para iniciar nuevamente.`;
 
@@ -224,9 +216,24 @@ function render(role, mdText){
 
   const bub = document.createElement("div");
   bub.className = "bubble";
-  bub.innerHTML = mdToHTML(mdText);
 
-  // Cabezal y botón Copiar en bloques <pre>
+  // 1) Markdown → HTML
+  let html = mdToHTML(mdText);
+
+  // 2) Auto-convertir líneas tipo "WhatsApp: https://..." y "Email: mailto:..."
+  html = html
+    .replace(/WhatsApp:\s*(https?:\/\/[^\s<]+)/gi, (_m, url) => {
+      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
+      return `<a href="${url}" target="_blank" style="${btnStyle}">📲 WhatsApp</a>`;
+    })
+    .replace(/Email:\s*(mailto:[^\s<]+)/gi, (_m, url) => {
+      const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
+      return `<a href="${url}" style="${btnStyle}">✉️ Email</a>`;
+    });
+
+  bub.innerHTML = html;
+
+  // Botón Copiar en bloques <pre>
   bub.querySelectorAll("pre").forEach(pre => {
     const head = document.createElement("div");
     head.className = "code-head";
@@ -248,7 +255,6 @@ function render(role, mdText){
   msgs.appendChild(row);
   msgs.scrollTop = msgs.scrollHeight;
 
-  // Persistencia del chat
   saveToHistory(role, mdText);
 }
 function userMsg(text){ render("user", escapeHTML(text)); }
@@ -272,7 +278,7 @@ function mdToHTML(md){
   const lines = md.split('\n').map(line=>{
     if (/^\s*-\s+/.test(line)) return `<li>${line.replace(/^\s*-\s+/, '')}</li>`;
     if (/^\s*•\s+/.test(line)) return `<li>${line.replace(/^\s*•\s+/, '')}</li>`;
-    if (/^<h\d|^<pre|^<ul|^<li|^<\/li|^<\/ul/.test(line)) return line;
+    if (/^<h\d|^<pre|^<ul|^<li|^<\/li|^<\/ul|^<a /.test(line)) return line; // no envolver <a> en <p>
     return line.trim()? `<p>${line}</p>` : '<p style="margin:4px 0"></p>';
   });
   const joined = lines.join('\n').replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
@@ -288,16 +294,14 @@ function norm(s){return (s||'').toLowerCase()
 
 // ====== Validaciones ======
 function isValidPhone(v){
-  // Acepta formatos como: 3001234567, 301 123 4567, +57 3001234567, 57 3001234567
   const d = onlyDigits(v);
-  // Colombia: 10 dígitos celulares (3xx...), opcional prefijo 57
   if (/^57\d{10}$/.test(d)) return true;
   if (/^\d{10}$/.test(d))   return true;
   return false;
 }
 function cleanPhone(v){
   let d = onlyDigits(v);
-  if (/^\d{10}$/.test(d)) d = "57" + d; // agrega prefijo país si falta
+  if (/^\d{10}$/.test(d)) d = "57" + d;
   return d;
 }
 function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
@@ -315,7 +319,6 @@ function restoreHistory(){
     if (m.role === 'assistant') botMsg(m.text);
     else userMsg(m.text);
   });
-  // Si había flujo activo guardado, invitar a retomarlo
   const savedFlow = loadFlowState();
   if (savedFlow?.activo){
     flow = savedFlow;
@@ -333,8 +336,3 @@ function loadFlowState(){
   try { return JSON.parse(localStorage.getItem(FLOW_KEY) || "null"); }
   catch { return null; }
 }
-
-/* ========= (Opcional) Hook para backend RAG / LLM =========
-   Si luego quieres respuestas generativas:
-   Reemplaza el cuerpo de respond() por un fetch al backend y conserva route() para respetar el flujo.
-============================================================= */
