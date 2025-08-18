@@ -3,151 +3,153 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asistente — Centro Digital de Diseño</title>
+  <title>Asistente • Centro Digital de Diseño</title>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#0b0f12; --surface:#0f1318; --border:#222a33; --muted:#8fa1b3; --text:#e9eef3;
-      --accent:#10a37f; --accent-2:#2dd4bf; --danger:#ef4444;
-      --radius:18px; --shadow:0 10px 30px rgba(0,0,0,.35); --maxw:840px;
-      --code-bg:#0b1016; --code-border:#1b2430;
+      /* Tema oscuro (similar ChatGPT) */
+      --bg:#0b0f14;
+      --surface:#0e141b;
+      --surface-2:#0f1720;
+      --assistant:#111827;      /* burbuja assistant */
+      --user:#1f2937;           /* burbuja usuario */
+      --border:#232b35;
+      --text:#e7edf3;
+      --muted:#93a6bb;
+      --accent:#10a37f;
+      --code-bg:#0b1016; --code-br:#1b2430;
+      --maxw:720px; --radius:18px;
     }
     [data-theme="light"]{
-      --bg:#f7f9fc; --surface:#ffffff; --border:#e6eaf0; --muted:#5b6b7c; --text:#0e1621;
-      --code-bg:#f5f7fa; --code-border:#e1e7ef;
+      --bg:#f7f9fc; --surface:#ffffff; --surface-2:#f2f5f9;
+      --assistant:#ffffff; --user:#e9eef5; --border:#e1e7ef;
+      --text:#0d141c; --muted:#5b6b7c; --code-bg:#f5f7fa; --code-br:#e1e7ef;
     }
+
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    a{color:var(--accent)}
-    .page{min-height:100%;display:flex;flex-direction:column}
-    .topbar{
-      position:sticky;top:0;z-index:10;background:linear-gradient(180deg,var(--bg),rgba(0,0,0,0));
-      backdrop-filter:saturate(1.1) blur(8px);
-      border-bottom:1px solid var(--border);
+    a{color:var(--accent);text-decoration:none}
+
+    .app{min-height:100vh;display:flex;flex-direction:column}
+    .top{
+      position:sticky;top:0;z-index:10;background:linear-gradient(180deg,var(--bg),transparent);
+      border-bottom:1px solid var(--border);backdrop-filter:saturate(1.05) blur(6px)
     }
-    .topbar-inner{max-width:var(--maxw);margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:12px}
-    .logo{
-      width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
-      background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#03120f;font-weight:900
+    .top-inner{max-width:var(--maxw);margin:0 auto;padding:14px 12px;display:flex;align-items:center;gap:10px}
+    .brand{
+      width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-weight:800;
+      background:linear-gradient(135deg,#10a37f,#2dd4bf);color:#06231e
     }
     .title{font-weight:700}
     .grow{flex:1}
-    .toggle{
-      border:1px solid var(--border);background:var(--surface);color:var(--text);
-      padding:8px 12px;border-radius:12px;font-weight:600;cursor:pointer
-    }
+    .ghost{border:1px solid var(--border);background:transparent;color:var(--text);padding:7px 12px;border-radius:12px;cursor:pointer}
 
-    .container{max-width:var(--maxw);margin:0 auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px}
-    .hint{
-      margin:8px auto 0;color:var(--muted);text-align:center;font-size:14px
-    }
+    .wrap{flex:1;display:flex;justify-content:center}
+    .col{width:100%;max-width:var(--maxw);padding:12px}
 
-    .chat{
-      background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-      box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;min-height:60vh
+    .messages{
+      display:flex;flex-direction:column;gap:10px;padding:16px 0 140px; /* espacio para input fijo */
     }
-    .messages{padding:18px;overflow:auto;scroll-behavior:smooth}
-    .msg{display:flex;gap:12px;margin:10px 0}
-    .avatar{
-      width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-weight:800;flex:0 0 28px;
-      background:#1a232e;color:#cfe3ff
+    .row{display:flex;gap:12px}
+    .row .avatar{
+      width:28px;height:28px;border-radius:50%;flex:0 0 28px;
+      display:grid;place-items:center;font-weight:700;font-size:12px;color:#d2f9ee;background:#0a201a;border:1px solid #174339
     }
-    .msg.bot .avatar{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06231e}
+    .row.user .avatar{background:#1b2430;border-color:#2c3746;color:#cfe3ff}
     .bubble{
-      max-width:750px;border:1px solid var(--border);border-radius:16px;padding:12px 14px;background:transparent;line-height:1.55
+      max-width:100%;border:1px solid var(--border);border-radius:18px;padding:12px 14px;line-height:1.6
     }
-    .msg.user{justify-content:flex-end}
-    .msg.user .avatar{order:2}
-    .msg.user .bubble{order:1;background:rgba(127,147,170,.08)}
-    .msg.bot .bubble{background:transparent}
+    .row.assistant .bubble{background:var(--assistant)}
+    .row.user .bubble{background:var(--user)}
+    .row.user{justify-content:flex-end}
+    .row.user .avatar{order:2}
+    .row.user .bubble{order:1}
 
-    /* Markdown basics */
+    /* Markdown */
     .bubble h1,.bubble h2,.bubble h3{margin:6px 0 8px;font-weight:700}
     .bubble h1{font-size:18px}.bubble h2{font-size:16px}.bubble h3{font-size:15px}
     .bubble p{margin:8px 0}
     .bubble ul{margin:8px 0 8px 18px}
-    .bubble code{font-family:"JetBrains Mono",ui-monospace,monospace;background:var(--code-bg);border:1px solid var(--code-border);padding:2px 6px;border-radius:8px}
-    pre{background:var(--code-bg);border:1px solid var(--code-border);padding:12px;border-radius:12px;overflow:auto}
+    .bubble code{font-family:"JetBrains Mono",ui-monospace,monospace;background:var(--code-bg);border:1px solid var(--code-br);padding:2px 6px;border-radius:8px}
+    pre{background:var(--code-bg);border:1px solid var(--code-br);padding:12px;border-radius:12px;overflow:auto;margin:8px 0}
     pre code{background:none;border:none;padding:0}
-    .code-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--muted)}
-    .copy-btn{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;padding:6px 10px;cursor:pointer}
+    .code-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;color:var(--muted);font-size:12px}
+    .copy{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;padding:6px 10px;cursor:pointer}
 
-    .composer{display:flex;gap:10px;padding:12px;border-top:1px solid var(--border);background:linear-gradient(180deg,rgba(0,0,0,.03),transparent)}
+    /* Chips */
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 4px}
+    .chip{padding:7px 12px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text);cursor:pointer;font-size:13px}
+    .chip:hover{border-color:#3a4656}
+
+    /* Barra de entrada fija al fondo (estilo ChatGPT) */
+    .composer-wrap{
+      position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 26%);
+      display:flex;justify-content:center;padding:14px 10px;border-top:1px solid var(--border)
+    }
+    .composer{width:100%;max-width:var(--maxw);display:flex;gap:8px}
+    .field{
+      flex:1;display:flex;flex-direction:column;gap:8px
+    }
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+    .ghost-sm{border:1px solid var(--border);background:transparent;color:var(--text);padding:6px 10px;border-radius:10px;font-size:13px;cursor:pointer}
     .input{
-      flex:1;background:transparent;border:1px solid var(--border);border-radius:14px;padding:12px 14px;color:var(--text);outline:none;min-height:46px
+      background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;color:var(--text);outline:none;min-height:46px
     }
     .input::placeholder{color:var(--muted)}
-    .send{background:var(--accent);color:#03231b;border:none;padding:0 18px;border-radius:12px;font-weight:700;cursor:pointer}
-    .send:disabled{opacity:.6;cursor:not-allowed}
+    .send{background:var(--accent);color:#05231b;border:none;padding:0 18px;border-radius:12px;font-weight:700;cursor:pointer}
 
-    .chips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 8px}
-    .chip{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text);cursor:pointer;font-size:13px}
-    .chip:hover{border-color:#3b495a}
-
-    .typing{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;padding:0 18px 12px}
+    .typing{display:none;align-items:center;gap:8px;color:var(--muted);font-size:14px}
     .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.6;animation:blink 1.2s infinite}
     .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
     @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
 
-    /* Floating widget option (hidden by default) */
-    .fab{display:none;position:fixed;right:18px;bottom:18px;width:58px;height:58px;border-radius:16px;
-      display:grid;place-items:center;border:1px solid var(--border);background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#06231e;font-weight:900;box-shadow:var(--shadow);z-index:9999}
-    .panel{display:none;position:fixed;right:18px;bottom:86px;width:min(420px,92vw);max-height:min(80vh,720px);z-index:9999}
-    .panel.open{display:block}
-    @media (max-width:720px){
-      .messages{padding:14px}
-      .container{padding:14px}
+    @media (max-width:760px){
+      .col{padding:10px}
+      .messages{padding-bottom:160px}
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header class="topbar">
-      <div class="topbar-inner">
-        <div class="logo">AI</div>
+  <div class="app">
+    <header class="top">
+      <div class="top-inner">
+        <div class="brand">AI</div>
         <div class="title">Asistente de Centro Digital de Diseño</div>
         <div class="grow"></div>
-        <button id="themeToggle" class="toggle" aria-label="Cambiar tema">Modo claro/oscuro</button>
+        <button id="theme" class="ghost" aria-label="Tema">Claro / Oscuro</button>
       </div>
     </header>
 
-    <div class="container">
-      <div class="chat" id="chat">
-        <div class="messages" id="messages"></div>
-        <div class="typing" id="typing" style="display:none;">
-          <span>Escribiendo</span><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        </div>
-        <div class="composer">
-          <div style="flex:1">
-            <div class="chips" id="chips">
-              <button class="chip" data-q="¿Qué servicios ofrecen?">Servicios</button>
-              <button class="chip" data-q="¿Diseñan páginas web y tiendas?">Páginas web</button>
-              <button class="chip" data-q="¿Automatizan WhatsApp y ManyChat?">Automatizaciones</button>
-              <button class="chip" data-q="¿Cómo es el proceso y los tiempos?">Proceso y tiempos</button>
-              <button class="chip" data-q="¿Cómo cotizo?">Cotización</button>
-            </div>
-            <input id="input" class="input" placeholder="Escribe tu mensaje… (Enter para enviar)" />
-          </div>
-          <button id="send" class="send">Enviar</button>
-        </div>
-      </div>
+    <main class="wrap">
+      <div class="col">
+        <div id="messages" class="messages"></div>
 
-      <p class="hint">Respondo sobre servicios, proceso, tiempos y próximos pasos. Integrado con la info del Centro Digital de Diseño y Centro de IA.</p>
+        <div id="typing" class="typing"><span>Escribiendo</span><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+
+        <!-- chips arriba (se añaden con el primer mensaje) -->
+      </div>
+    </main>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <div class="field">
+          <div class="toolbar">
+            <button class="ghost-sm" disabled>＋</button>
+            <button class="ghost-sm" disabled>📎</button>
+            <button class="ghost-sm" disabled>🎤</button>
+          </div>
+          <input id="input" class="input" placeholder="Escribe tu mensaje… (Enter para enviar)" />
+        </div>
+        <button id="send" class="send">Enviar</button>
+      </div>
     </div>
   </div>
 
-  <!-- Floating elements (actívalo desde JS si quieres) -->
-  <button id="fab" class="fab" title="Abrir asistente">AI</button>
-  <div id="panel" class="panel"></div>
-
   <script src="bot.js"></script>
   <script>
-    // Inicia en modo embebido. Para modo flotante: initAssistant({ mode: 'floating' })
-    initAssistant({ mode: 'embedded' });
-    // Tema
-    const btn = document.getElementById('themeToggle');
-    btn.addEventListener('click', () => {
+    // Tema claro/oscuro
+    document.getElementById('theme').addEventListener('click', () => {
       const root = document.documentElement;
       root.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
     });
