@@ -1,5 +1,5 @@
-// bot.js — PRO + Flujo de Cotización + Botones (contacto oficial) + Sugerencias + Autoscroll
-// (Markdown + Copiar + Typing + Persistencia + Auto-linkify)
+// bot.js — PRO + Flujo de Cotización + Botones (contacto oficial) + Sugerencias
+// FIX móvil: autoscroll robusto (iOS/Android) + hooks de teclado/viewport
 const msgs  = document.getElementById('messages');
 const input = document.getElementById('input');
 const send  = document.getElementById('send');
@@ -31,9 +31,7 @@ const KB = {
 };
 
 // === Estado del flujo de cotización ===
-let flow = loadFlowState() || {
-  activo: false, paso: 0, datos: { nombre:"", servicios:"", empresa:"", telefono:"" }
-};
+let flow = loadFlowState() || { activo:false, paso:0, datos:{ nombre:"", servicios:"", empresa:"", telefono:"" } };
 
 // ====== Arranque ======
 restoreHistory();
@@ -48,12 +46,8 @@ send.onclick = () => {
   userMsg(txt);
   route(txt);
 };
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); }
-});
-document.querySelectorAll(".chip").forEach(c => {
-  c.onclick = () => { userMsg(c.dataset.q); route(c.dataset.q); };
-});
+input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); } });
+document.querySelectorAll(".chip").forEach(c => { c.onclick = () => { userMsg(c.dataset.q); route(c.dataset.q); }; });
 if (clear) {
   clear.onclick = () => {
     localStorage.removeItem(STORAGE_KEY);
@@ -65,7 +59,7 @@ if (clear) {
   };
 }
 
-// ====== Router principal (flujo o respuestas estándar) ======
+// ====== Router principal ======
 function route(q){
   if (/^cancelar$/i.test(q.trim())) {
     if (flow.activo){
@@ -92,36 +86,31 @@ function startCotizacion(){
 
 function handleCotizacion(txt){
   switch(flow.paso){
-    case 1: 
+    case 1:
       flow.datos.nombre = txt;
-      flow.paso = 2; 
-      saveFlowState();
+      flow.paso = 2; saveFlowState();
       botMsg(`Gracias, **${escapeHTML(txt)}**.  
 2️⃣ Cuéntame: ¿Qué **servicios** te interesan?  
 _Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con branding”, “Bot de IA para atención”, etc._`);
       break;
 
-    case 2: 
+    case 2:
       flow.datos.servicios = txt;
-      flow.paso = 3; 
-      saveFlowState();
+      flow.paso = 3; saveFlowState();
       botMsg("3️⃣ ¿Cómo se llama tu **empresa o proyecto**?");
       break;
 
-    case 3: 
+    case 3:
       flow.datos.empresa = txt;
-      flow.paso = 4; 
-      saveFlowState();
+      flow.paso = 4; saveFlowState();
       botMsg("4️⃣ ¿Cuál es tu **número de WhatsApp o teléfono**?");
       break;
 
-    case 4: {
-      // Validación opcional: si quieres validar, descomenta estas líneas
-      // if (!isValidPhone(txt)) { botMsg("Formato no reconocido. Ej.: `3001234567` o `+57 3001234567`."); return; }
-      flow.datos.telefono = txt;
+    case 4:
+      flow.datos.telefono = txt; // (si quieres validar, puedes usar isValidPhone/cleanPhone)
       finalizeQuote();
       break;
-    }
+
     default:
       flow = { activo:false, paso:0, datos:{nombre:"",servicios:"",empresa:"",telefono:""} };
       saveFlowState();
@@ -130,25 +119,22 @@ _Ejemplo: “Landing page + automatización WhatsApp”, “E-commerce con brand
 }
 
 function finalizeQuote(){
-  // Guardar lead en localStorage
+  // Guardar lead
   const leads = JSON.parse(localStorage.getItem(QUOTE_KEY) || "[]");
   const lead = { ...flow.datos, fecha: new Date().toISOString() };
   leads.push(lead);
   localStorage.setItem(QUOTE_KEY, JSON.stringify(leads));
 
-  // Preparar resumen y CTAs (botones a contacto oficial)
+  // Resumen + CTAs (a contacto oficial)
   const { nombre, servicios, empresa, telefono } = flow.datos;
-  const wappText = encodeURIComponent(
-    `Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`
-  );
+  const wappText = encodeURIComponent(`Hola, soy ${nombre} (${empresa}). Me interesa: ${servicios}. Mi contacto: ${telefono}.`);
   const mailBody = encodeURIComponent(
 `Nombre: ${nombre}
 Servicios: ${servicios}
 Empresa/Proyecto: ${empresa}
 Teléfono: ${telefono}
 
-Mensaje: Hola, quiero avanzar con la cotización.`
-  );
+Mensaje: Hola, quiero avanzar con la cotización.`);
 
   const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
 
@@ -211,7 +197,7 @@ function smallSearch(q){
   return score>0 ? best : null;
 }
 
-// ====== Render con Markdown + botón Copiar + AUTOSCROLL ======
+// ====== Render con Markdown + Copiar + AUTOSCROLL ROBUSTO ======
 function render(role, mdText){
   const row = document.createElement("div");
   row.className = "row " + (role === "assistant" ? "assistant" : "user");
@@ -222,21 +208,11 @@ function render(role, mdText){
 
   const bub = document.createElement("div");
   bub.className = "bubble";
-  bub.innerHTML = mdToHTML(mdText);
 
-  row.appendChild(av); 
-  row.appendChild(bub);
-  msgs.appendChild(row);
+  // Markdown → HTML
+  let html = mdToHTML(mdText);
 
-  // ✅ Autoscroll instantáneo
-  requestAnimationFrame(() => {
-    msgs.scrollTop = msgs.scrollHeight;
-  });
-
-  saveToHistory(role, mdText);
-}
-
-  // 2) Auto-convertir líneas tipo "WhatsApp: https://..." y "Email: mailto:..."
+  // Autolink “WhatsApp: https://… / Email: mailto:…”
   html = html
     .replace(/WhatsApp:\s*(https?:\/\/[^\s<]+)/gi, (_m, url) => {
       const btnStyle = "display:inline-block;margin-top:8px;margin-right:8px;background:#10a37f;color:#fff;text-decoration:none;padding:8px 14px;border-radius:10px;font-weight:600;font-size:14px";
@@ -249,7 +225,7 @@ function render(role, mdText){
 
   bub.innerHTML = html;
 
-  // Botón Copiar en bloques <pre>
+  // Botón Copiar en <pre>
   bub.querySelectorAll("pre").forEach(pre => {
     const head = document.createElement("div");
     head.className = "code-head";
@@ -267,33 +243,55 @@ function render(role, mdText){
     head.appendChild(btn);
   });
 
-  row.appendChild(av); 
+  row.appendChild(av);
   row.appendChild(bub);
   msgs.appendChild(row);
 
-  // ⬇️ AUTOSCROLL seguro (espera a que pinte el DOM)
-  setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 50);
+  // ✅ AUTOSCROLL: versión móvil robusta
+  autoScroll();
 
   saveToHistory(role, mdText);
 }
-function userMsg(text){ render("user", escapeHTML(text)); }
-function botMsg(text){ render("assistant", text); }
+
+// ====== Autoscroll robusto (móvil/desktop) ======
+function autoScroll() {
+  // 1) intento inmediato
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // 2) tras el pintado (asegura cálculo de altura)
+  requestAnimationFrame(() => {
+    msgs.scrollTop = msgs.scrollHeight;
+  });
+
+  // 3) pequeño retraso por si hay fuentes/imagenes async (iOS Safari)
+  setTimeout(() => {
+    msgs.scrollTop = msgs.scrollHeight;
+    const last = msgs.lastElementChild;
+    if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end', inline: 'nearest' });
+  }, 120);
+}
+
+// Reforzar en eventos móviles comunes
+window.addEventListener('resize', autoScroll);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', autoScroll);
+  window.visualViewport.addEventListener('scroll', autoScroll);
+}
+input.addEventListener('focus', autoScroll);
+input.addEventListener('blur', autoScroll);
 
 // ====== Utilidades UI ======
 function showTyping(v){ typing.style.display = v ? "flex" : "none"; }
 
 // ====== Mini Markdown ======
 function mdToHTML(md){
-  // bloques ```code```
   md = md.replace(/```([\s\S]*?)```/g, (_,code)=> `<pre><code>${escapeHTML(code.trim())}</code></pre>`);
-  // títulos, negritas, inline code
   md = md
     .replace(/^### (.*)$/gim,'<h3>$1</h3>')
     .replace(/^## (.*)$/gim,'<h2>$1</h2>')
     .replace(/^# (.*)$/gim,'<h1>$1</h1>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/`([^`]+?)`/g,'<code>$1</code>');
-  // listas simples y párrafos (evita envolver <a> en <p>)
   const lines = md.split('\n').map(line=>{
     if (/^\s*-\s+/.test(line)) return `<li>${line.replace(/^\s*-\s+/, '')}</li>`;
     if (/^\s*•\s+/.test(line)) return `<li>${line.replace(/^\s*•\s+/, '')}</li>`;
@@ -325,7 +323,7 @@ function cleanPhone(v){
 }
 function onlyDigits(s){ return (s||'').replace(/\D+/g,''); }
 
-// ====== Persistencia (chat + flujo + leads) ======
+// ====== Persistencia ======
 function saveToHistory(role, text){
   const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   arr.push({ role, text, t: Date.now() });
@@ -334,24 +332,13 @@ function saveToHistory(role, text){
 function restoreHistory(){
   const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   if (!arr.length) return;
-  arr.forEach(m => {
-    if (m.role === 'assistant') botMsg(m.text);
-    else userMsg(m.text);
-  });
+  arr.forEach(m => { if (m.role === 'assistant') botMsg(m.text); else userMsg(m.text); });
   const savedFlow = loadFlowState();
   if (savedFlow?.activo){
     flow = savedFlow;
     botMsg("Teníamos un **flujo de cotización** pendiente. ¿Deseas **continuar**? Si prefieres salir, escribe `cancelar`.");
   }
 }
-function historyEmpty(){
-  const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  return arr.length === 0;
-}
-function saveFlowState(){
-  localStorage.setItem(FLOW_KEY, JSON.stringify(flow));
-}
-function loadFlowState(){
-  try { return JSON.parse(localStorage.getItem(FLOW_KEY) || "null"); }
-  catch { return null; }
-}
+function historyEmpty(){ return (JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]").length === 0); }
+function saveFlowState(){ localStorage.setItem(FLOW_KEY, JSON.stringify(flow)); }
+function loadFlowState(){ try { return JSON.parse(localStorage.getItem(FLOW_KEY) || "null"); } catch { return null; } }
