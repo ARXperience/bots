@@ -1,4 +1,4 @@
-// app.js — build mínimo funcional con RAG local + síntesis y anti-eco
+// app4.js — build mínimo funcional con RAG local + síntesis y anti-eco
 (() => {
   'use strict';
 
