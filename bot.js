@@ -228,12 +228,9 @@ function render(role, mdText){
   row.appendChild(bub);
   msgs.appendChild(row);
 
-  // ✅ Autoscroll suave y garantizado
+  // ✅ Autoscroll instantáneo
   requestAnimationFrame(() => {
-    msgs.scrollTo({
-      top: msgs.scrollHeight,
-      behavior: "smooth"
-    });
+    msgs.scrollTop = msgs.scrollHeight;
   });
 
   saveToHistory(role, mdText);
